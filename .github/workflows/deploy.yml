@@ -1,0 +1,62 @@
+name: Deploy to GitHub Pages
+
+# Builds from a clean checkout and publishes the result. Deploying from a
+# locally built dist/ is what previously allowed a failed `tsc` to republish a
+# stale bundle while printing "Published" — see AGENTS.md in colic-flowsheet-app.
+# Here a compile error fails the run and nothing ships.
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; always finish the newest.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # `npm run build` is `tsc -b && vite build`, so a type error stops the
+      # job here rather than silently shipping the previous bundle.
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Fail if the bundle is missing
+        run: test -f dist/index.html && test -d dist/assets
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -11,17 +11,80 @@ export type ViewTab =
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
+/**
+ * Triage weight carried by a structured (non-numeric) clinical finding.
+ * Used for cell colour and for escalating call-surgeon triggers. It is a
+ * display/triage weighting agreed with the attending clinician — not a
+ * validated score, and it is never presented as one.
+ */
+export type AssessmentSeverity = 'normal' | 'watch' | 'warning' | 'critical';
+
+/**
+ * Auscultation grade for a single abdominal quadrant.
+ * '++' hypermotile · '+' normal · '-' reduced · '0' absent
+ */
+export type GutSoundGrade = '++' | '+' | '-' | '0';
+
+/**
+ * Gut sounds recorded per abdominal quadrant rather than as a single
+ * impression. Ported from the Colic Monitoring Tool, renamed from
+ * upper/lower to the anatomical dorsal/ventral convention.
+ */
+export interface GutSoundsQuadrants {
+  leftDorsal: GutSoundGrade;
+  leftVentral: GutSoundGrade;
+  rightDorsal: GutSoundGrade;
+  rightVentral: GutSoundGrade;
+}
+
+export interface ManureRecord {
+  passed: boolean;
+  amount?: 'Small' | 'Moderate' | 'Abundant';
+  consistency?: 'Normal pellets' | 'Soft / cow-pat' | 'Watery diarrhoea' | 'Mucus-covered';
+}
+
 export interface VitalsData {
   temperatureC?: number; // °C
   temperatureF?: number; // °F
   heartRate?: number; // bpm
   respiratoryRate?: number; // brpm
+  mucousMembranes?: string;
+  crtSeconds?: number; // seconds
+  mentation?: string;
 }
 
 export interface GIData {
   refluxVolumeL?: number; // Liters
   motility?: 'Normal' | 'Decreased' | 'Absent' | 'Hyper-motile';
   borborygmi?: string;
+  /** Four-quadrant auscultation. `motility` is derived from this when present. */
+  gutSounds?: GutSoundsQuadrants;
+  refluxAppearance?: string;
+  nasogastricTube?: string;
+  manure?: ManureRecord;
+  rectalExam?: string;
+  flashUltrasound?: string;
+  peritonealFluid?: string;
+  responseToTherapy?: string;
+}
+
+export interface PainData {
+  /** 0–3 composite pain score. 0 is a finding, not missing data. */
+  score?: number;
+  behaviour?: string;
+  analgesia?: string;
+}
+
+export interface LaminitisData {
+  digitalPulse?: string;
+  /** Obel grade 0–4. 0 is a finding, not missing data. */
+  obelGrade?: number;
+  cryotherapy?: string;
+}
+
+export interface SupportData {
+  ivCatheterSite?: string;
+  incisionStatus?: string;
 }
 
 export interface LabsData {
@@ -38,7 +101,24 @@ export interface FlowsheetColumn {
   vitals: VitalsData;
   gi: GIData;
   labs: LabsData;
+  pain?: PainData;
+  laminitis?: LaminitisData;
+  support?: SupportData;
   note?: string;
+}
+
+/**
+ * Thresholds that escalate a finding to a "call the surgeon" alert.
+ * Defaults follow the Colic Monitoring Tool; the attending clinician can
+ * override them per patient.
+ */
+export interface TriggerThresholds {
+  heartRateBpm: number;
+  respRateBpm: number;
+  refluxLiters: number;
+  painScore: number;
+  lactateMmolL: number;
+  temperatureC: number;
 }
 
 export type PatientCategory = 'ADULT_COLIC' | 'NEONATAL_FOAL' | 'ADULT_GI';
