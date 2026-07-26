@@ -5,6 +5,10 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    // Project GitHub Pages sites are served from a sub-path. Without this,
+    // the built index.html asks for /assets/... which resolves to the user
+    // site root and 404s, leaving a blank page.
+    base: '/equine-patient-sheet-app/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
