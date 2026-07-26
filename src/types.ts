@@ -2,6 +2,19 @@ export type PatientCategory = 'ADULT_COLIC' | 'NEONATAL_FOAL' | 'ADULT_GI';
 
 export type PatientType = 'ADULT' | 'FOAL' | 'BOTH';
 
+export interface OwnerProfile {
+  name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  insuranceInfo?: string;
+}
+
+export interface AdmissionPhysicalExam {
+  classification: 'CRITICAL' | 'STABLE' | 'NEEDS_TRIAGE' | 'ROUTINE';
+  notes?: string;
+}
+
 export interface Patient {
   id: string;
   name: string;
@@ -13,6 +26,9 @@ export interface Patient {
   status: 'ACTIVE' | 'DISCHARGED' | 'DECEASED';
   admissionDate: string;
   
+  owner: OwnerProfile;
+  admissionExam?: AdmissionPhysicalExam;
+
   // Neonatal specific
   gestationalAgeDays?: number;
   colostrumIntake?: 'ADEQUATE' | 'POOR' | 'NONE' | 'UNKNOWN';
@@ -23,7 +39,7 @@ export interface DrugFormularyItem {
   id: string;
   name: string;
   brandName?: string;
-  category: string;
+  categories: string[];
   doseMin: number;
   doseMax: number;
   doseDefault: number;
@@ -92,7 +108,10 @@ export interface FlowsheetEntry {
   fibrinogen?: number;
   lactate?: number;
   glucose?: number;
-  creatinine?: number;
+  eosinopenia?: boolean;
+  albumin?: number; // g/L
+  creatinine?: number; // µmol/L
+  syndecan1?: number; // ng/mL
   igg?: number;
   pao2?: number;
   paco2?: number;
@@ -104,6 +123,7 @@ export interface FlowsheetEntry {
   ngal?: number;
   platelets?: number;
   rdw?: number;
+  rpr?: number;
 
   // Clinical signs
   coldExtremities?: boolean;
@@ -114,6 +134,7 @@ export interface FlowsheetEntry {
   // GI specific
   gutSounds?: 'NORMAL' | 'HYPOMOTILE' | 'ABSENT' | 'HYPERMOTILE';
   gastricRefluxVol?: number;
+  postOpReflux?: boolean;
   abdominalUltrasound?: 'NORMAL' | 'ABNORMAL';
   rectalExam?: 'NORMAL' | 'ABNORMAL';
 }

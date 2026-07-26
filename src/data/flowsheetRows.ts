@@ -50,5 +50,11 @@ export const ADULT_COLIC_FLOWSHEET_ROWS: FlowsheetRowDef[] = [
   { id: 'wbc', label: 'WBC', unit: '/µL', type: 'number', category: 'LABS' },
   { id: 'calcium', label: 'Calcium', unit: 'mg/dL', type: 'number', category: 'LABS' },
   { id: 'ck', label: 'CK', unit: 'U/L', type: 'number', category: 'LABS' },
-  { id: 'rbc', label: 'RBC', unit: 'x10^6/µL', type: 'number', category: 'LABS' }
+  { id: 'rbc', label: 'RBC', unit: 'x10^6/µL', type: 'number', category: 'LABS' },
+  { id: 'eosinopenia', label: 'Eosinopenia', unit: '', type: 'boolean', category: 'LABS' },
+  { id: 'albumin', label: 'Albumin', unit: 'g/L', type: 'number', category: 'LABS' },
+  { id: 'creatinine', label: 'Creatinine', unit: 'µmol/L', type: 'number', category: 'LABS' },
+  
+  { id: 'postOpReflux', label: 'Post-Op Reflux (POR)', unit: '', type: 'boolean', category: 'GI' },
+  { id: 'syndecan1', label: 'Syndecan-1', unit: 'ng/mL', type: 'number', category: 'BIOMARKERS' }
 ];

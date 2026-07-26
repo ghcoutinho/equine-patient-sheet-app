@@ -72,6 +72,15 @@ export const CORNELL_EQUINE_IMMUNOLOGY: LabParameterRange[] = [
   { id: 'lab_iga', name: 'IgA', sectionGroup: 'Immunology', units: 'mg/dL', referenceMin: 100, referenceMax: 400 },
 ];
 
+export const CORNELL_EQUINE_BLOOD_GAS: LabParameterRange[] = [
+  { id: 'lab_ph', name: 'pH', sectionGroup: 'Chemistry', units: '', referenceMin: 7.35, referenceMax: 7.45, criticalMin: 7.20, criticalMax: 7.60 },
+  { id: 'lab_pco2', name: 'pCO2', sectionGroup: 'Chemistry', units: 'mmHg', referenceMin: 38, referenceMax: 46 },
+  { id: 'lab_po2', name: 'pO2', sectionGroup: 'Chemistry', units: 'mmHg', referenceMin: 85, referenceMax: 100 },
+  { id: 'lab_hco3', name: 'HCO3-', sectionGroup: 'Chemistry', units: 'mEq/L', referenceMin: 24, referenceMax: 30 },
+  { id: 'lab_base_excess', name: 'Base Excess', sectionGroup: 'Chemistry', units: 'mEq/L', referenceMin: -2.0, referenceMax: 2.0 },
+];
+
+
 // Special category for Quick Labs
 export const QUICK_LABS: LabParameterRange[] = [
   { id: 'ht_pcv', name: 'Hematocrit (PCV %)', sectionGroup: 'Quick Labs', units: '%', referenceMin: 32, referenceMax: 48, criticalMin: 20, criticalMax: 65 },
