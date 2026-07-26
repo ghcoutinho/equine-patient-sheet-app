@@ -1,5 +1,47 @@
-export type PatientCategory = 'ADULT_COLIC' | 'NEONATAL_FOAL' | 'ADULT_GI';
+export type PatientStatus = 'CRITICAL' | 'WATCH' | 'NORMAL' | 'ACTIVE' | 'DISCHARGED' | 'DECEASED';
 
+export type ViewTab = 
+  | 'overview' 
+  | 'dashboard' 
+  | 'flowsheet' 
+  | 'intelligence' 
+  | 'assess' 
+  | 'scores' 
+  | 'calculator';
+
+export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
+
+export interface VitalsData {
+  temperatureC?: number; // °C
+  temperatureF?: number; // °F
+  heartRate?: number; // bpm
+  respiratoryRate?: number; // brpm
+}
+
+export interface GIData {
+  refluxVolumeL?: number; // Liters
+  motility?: 'Normal' | 'Decreased' | 'Absent' | 'Hyper-motile';
+  borborygmi?: string;
+}
+
+export interface LabsData {
+  lactate?: number; // mmol/L
+  pcv?: number; // %
+  tp?: number; // g/dL
+  ionizedCalcium?: number | 'Pending'; // mmol/L
+  glucose?: number | 'Pending'; // mg/dL
+  igg?: number | 'Pending'; // mg/dL
+}
+
+export interface FlowsheetColumn {
+  time: string; // e.g. "14:00"
+  vitals: VitalsData;
+  gi: GIData;
+  labs: LabsData;
+  note?: string;
+}
+
+export type PatientCategory = 'ADULT_COLIC' | 'NEONATAL_FOAL' | 'ADULT_GI';
 export type PatientType = 'ADULT' | 'FOAL' | 'BOTH';
 
 export interface OwnerProfile {
@@ -18,21 +60,52 @@ export interface AdmissionPhysicalExam {
 export interface Patient {
   id: string;
   name: string;
-  category: PatientCategory;
-  age: string; // e.g., '12 hours', '5 years'
-  weightKg: number;
+  caseNumber: string;
   breed: string;
-  gender: string;
-  status: 'ACTIVE' | 'DISCHARGED' | 'DECEASED';
-  admissionDate: string;
+  weightKg: number;
+  age: string; // Made required to merge
+  location: string;
+  status: PatientStatus;
+  statusLabel?: string; 
+  lastObsTime: string; 
+  flowsheetHistory: FlowsheetColumn[];
   
+  // Scoring details
+  casScoreConfirmed: number;
+  casScoreMaxPending: number;
+  sirsCriteriaMet: boolean;
+  sirsDescription?: string;
+  
+  // Neonatal specific if applicable
+  isFoal?: boolean;
+  fssPrematurityDays?: number;
+  fssColdExtremities?: boolean;
+  fssInfectiousSite?: string;
+  
+  criActive?: string;
+  
+  // Merged from old patient
+  category: PatientCategory;
+  gender: string;
+  admissionDate: string;
   owner: OwnerProfile;
   admissionExam?: AdmissionPhysicalExam;
-
-  // Neonatal specific
   gestationalAgeDays?: number;
   colostrumIntake?: 'ADEQUATE' | 'POOR' | 'NONE' | 'UNKNOWN';
   damHistory?: string;
+}
+
+export interface MedicationCalc {
+  id: string;
+  name: string;
+  category: string;
+  concentrationMgMl?: number;
+  defaultDoseMgKg: number;
+  minDoseMgKg: number;
+  maxDoseMgKg: number;
+  isCRI?: boolean;
+  criUnit?: string;
+  route: 'IV' | 'IM' | 'PO' | 'CRI';
 }
 
 export interface DrugFormularyItem {
@@ -43,11 +116,11 @@ export interface DrugFormularyItem {
   doseMin: number;
   doseMax: number;
   doseDefault: number;
-  doseUnit: string; // mg/kg, mcg/kg, IU/kg, mL/kg
+  doseUnit: string; 
   concentration: number;
-  concentrationUnit: string; // mg/mL
-  route: string[]; // IV, IM, PO, SC
-  frequency: string; // q4h, q6h, q8h, q12h, q24h, PRN, CRI
+  concentrationUnit: string; 
+  route: string[]; 
+  frequency: string; 
   indications: string[];
   cautions: string;
   notes: string;
@@ -69,7 +142,7 @@ export interface NeonatalSepsisResult {
 
 export interface FoalSurvivalResult {
   score: ScoreBounds;
-  survivalProbabilityRange: [number, number]; // e.g. [3, 97]
+  survivalProbabilityRange: [number, number]; 
 }
 
 export interface AdultSepsisResult {
@@ -109,9 +182,9 @@ export interface FlowsheetEntry {
   lactate?: number;
   glucose?: number;
   eosinopenia?: boolean;
-  albumin?: number; // g/L
-  creatinine?: number; // µmol/L
-  syndecan1?: number; // ng/mL
+  albumin?: number;
+  creatinine?: number;
+  syndecan1?: number;
   igg?: number;
   pao2?: number;
   paco2?: number;
