@@ -7,7 +7,8 @@ export type ViewTab =
   | 'intelligence' 
   | 'assess' 
   | 'scores' 
-  | 'calculator';
+  | 'calculator'
+  | 'ranges';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 

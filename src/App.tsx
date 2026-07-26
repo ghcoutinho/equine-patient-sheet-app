@@ -14,6 +14,7 @@ import { LiveIntelligenceView } from './components/views/LiveIntelligenceView';
 import { RoundEntryView } from './components/views/RoundEntryView';
 import { NeonatalAssessmentView } from './components/views/NeonatalAssessmentView';
 import { DoseCalculatorView } from './components/views/DoseCalculatorView';
+import { ReferenceRangesView } from './components/views/ReferenceRangesView';
 
 export function App() {
   const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
@@ -132,6 +133,10 @@ export function App() {
               patient={activePatient}
               onUpdatePatient={handleUpdatePatient}
             />
+          )}
+
+          {currentTab === 'ranges' && (
+            <ReferenceRangesView patient={activePatient} />
           )}
 
           {currentTab === 'calculator' && (

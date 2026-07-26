@@ -5,6 +5,8 @@ import { formatManure } from '../../utils/manure';
 import { severityOf } from '../../data/clinicalAssessments';
 import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
+import { classifyAgainstReference } from '../../utils/referenceLookup';
+import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 
 const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
   normal: 'text-[#047857]',
@@ -90,13 +92,18 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     return 'text-[#047857]';
   };
 
-  const getLactateClass = (lac?: number | string) => {
-    if (lac === 'Pending' || lac === undefined) return 'bg-[#F8FAFC] text-[#475569] italic';
-    const val = typeof lac === 'number' ? lac : parseFloat(lac);
-    if (val > 4.0) return 'bg-[#B91C1C] text-white font-bold';
-    if (val > 2.0) return 'bg-[#FFF7ED] text-[#C2410C] font-bold';
-    return 'text-[#047857]';
+  const ageClass = ageClassFor(patient.age, patient.isFoal || patient.category === 'NEONATAL_FOAL');
+
+  /** Colour a lab value from the published interval for this patient's age. */
+  const refClass = (parameterId: string, value?: number | string) => {
+    if (value === 'Pending' || value === undefined) return 'bg-[#F8FAFC] text-[#475569] italic';
+    const val = typeof value === 'number' ? value : parseFloat(value);
+    const severity = classifyAgainstReference(parameterId, val, ageClass);
+    if (severity === undefined) return 'text-[#0b1c30]'; // no published interval — never guess
+    return SEVERITY_CELL[severity];
   };
+
+  const getLactateClass = (lac?: number | string) => refClass('lactate', lac);
 
   const colCount = patient.flowsheetHistory.length + 2;
 
