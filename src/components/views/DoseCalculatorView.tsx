@@ -306,6 +306,11 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
                   Single published dose — no range on file.
                 </p>
               )}
+              {spec?.qualifier && (
+                <p className="font-derived-value text-[11px] text-[#B45309] mt-1">
+                  Dose is expressed as: {spec.qualifier}
+                </p>
+              )}
             </div>
 
             {/* Concentration */}

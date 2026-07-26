@@ -13,35 +13,51 @@ export type RatePer = 'hr' | 'min';
 export interface DoseUnitSpec {
   /** 'per-kg' = mg/kg · 'per-kg-rate' = mg/kg/hr · 'total' = mg (total) · 'opaque' = capsules, drops, strips */
   kind: 'per-kg' | 'per-kg-rate' | 'total' | 'opaque';
-  /** Mass (or activity, or volume) unit of the numerator: mg, mcg, g, IU, mU, mL. */
+  /** Mass (or activity, or volume) unit of the numerator: mg, mcg, g, IU, mU, mL, L. */
   massUnit?: string;
   ratePer?: RatePer;
+  /**
+   * Free text the formulary appends to the unit, e.g. "as MgSO4",
+   * "elemental Ca (or ~0.2-0.4 mL/kg of 23% solution)". Clinically load-bearing,
+   * so it is preserved and shown rather than parsed away.
+   */
+  qualifier?: string;
 }
+
+const cleanQualifier = (s: string | undefined): string | undefined => {
+  const t = (s || '').trim().replace(/^[(\s]+|[)\s]+$/g, '').trim();
+  return t.length > 0 ? t : undefined;
+};
 
 export function parseDoseUnit(doseUnit: string): DoseUnitSpec {
   const u = (doseUnit || '').trim();
 
-  // "mg (total)", "IU (total)", "mcg (total)", "mL (total)"
-  const total = u.match(/^([A-Za-z]+)\s*\(total\)$/i);
-  if (total) return { kind: 'total', massUnit: total[1] };
-
-  // "mg/kg/hr", "mU/kg/min", "mcg/kg/min", "IU/kg/hr"
-  const rate = u.match(/^([A-Za-z]+)\/kg\/(hr|min)$/i);
-  if (rate) {
+  // Rate: "mg/kg/hr", "mg/kg/h", "mU/kg/min", "mcg/kg/min", "IU/kg/hr"
+  let m = u.match(/^([A-Za-z]+)\/kg\/(hours?|hrs?|h|min(?:utes?)?)\b(.*)$/i);
+  if (m) {
     return {
       kind: 'per-kg-rate',
-      massUnit: rate[1],
-      ratePer: rate[2].toLowerCase() as RatePer,
+      massUnit: m[1],
+      ratePer: /min/i.test(m[2]) ? 'min' : 'hr',
+      qualifier: cleanQualifier(m[3]),
     };
   }
 
-  // "mg/kg", "mcg/kg", "IU/kg", "mL/kg", "g/kg"
-  const perKg = u.match(/^([A-Za-z]+)\/kg$/i);
-  if (perKg) return { kind: 'per-kg', massUnit: perKg[1] };
+  // Per kg, optionally with trailing free text:
+  // "mg/kg", "mL/kg", "mg/kg (combined)", "mg/kg elemental Ca (or ~0.2-0.4 mL/kg ...)"
+  m = u.match(/^([A-Za-z]+)\/kg\b(.*)$/i);
+  if (m) return { kind: 'per-kg', massUnit: m[1], qualifier: cleanQualifier(m[2]) };
+
+  // Totals: "mg (total)", "IU (total)", "L total (not weight-based; ~4-8 mL/kg)"
+  m = u.match(/^([A-Za-z]+)\s*(?:\(total\)|total\b)(.*)$/i);
+  if (m) return { kind: 'total', massUnit: m[1], qualifier: cleanQualifier(m[2]) };
 
   // capsules, drops, strips, mg/m2, bare "kg"/"g"/"IU"/"mcg", "-"
   return { kind: 'opaque' };
 }
+
+/** Volume units the dose may already be expressed in. */
+const VOLUME_UNITS: Record<string, string> = { ml: 'mL', l: 'L' };
 
 /** Factor converting `unit` into milligrams. null when it is not a mass at all. */
 function toMilligrams(unit: string | undefined): number | null {
@@ -107,15 +123,16 @@ export function computeDose(input: DoseInput): DoseResult {
     spec.kind === 'total' ? dose : round(weightKg * dose);
   const amountUnit = `${spec.massUnit}${rateSuffix}`;
 
-  // A dose already expressed in mL is its own volume; no concentration needed.
-  if ((spec.massUnit || '').toLowerCase() === 'ml') {
+  // A dose already expressed in mL or L is its own volume; no concentration needed.
+  const volumeUnitName = VOLUME_UNITS[(spec.massUnit || '').toLowerCase()];
+  if (volumeUnitName) {
     return {
       amount,
       amountUnit,
       volume: amount,
-      volumeUnit: `mL${rateSuffix}`,
+      volumeUnit: `${volumeUnitName}${rateSuffix}`,
       ratePer: spec.ratePer,
-      summary: `${amount} mL${rateSuffix}`,
+      summary: `${amount} ${volumeUnitName}${rateSuffix}`,
     };
   }
 

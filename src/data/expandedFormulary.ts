@@ -3578,5 +3578,973 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "notes": "",
     "isCRI": false,
     "patientType": "BOTH"
+  },
+
+  // ---------------------------------------------------------------------------
+  // Adult colic / ICU formulary, ported verbatim from colic-flowsheet-app's
+  // INITIAL_FORMULARY. Dose values, concentrations, cautions and source notes
+  // are unchanged; only the record shape was mapped to DrugFormularyItem.
+  // ---------------------------------------------------------------------------
+  {
+    "id": "flunixin_meglumine_0",
+    "name": "Flunixin meglumine (colic / musculoskeletal pain (label))",
+    "brandName": "Banamine",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 1.1,
+    "doseMax": 1.1,
+    "doseDefault": 1.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "IM",
+      "PO"
+    ],
+    "frequency": "q24h",
+    "indications": [
+      "visceral/colic pain",
+      "anti-endotoxic (low dose)",
+      "musculoskeletal pain",
+      "fever"
+    ],
+    "cautions": "GI ulceration, right dorsal colitis, nephrotoxicity with dehydration; can mask surgical colic signs at full analgesic dose",
+    "notes": "IV preferred for colic; IM injection carries risk of clostridial myositis — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "flunixin_meglumine_1",
+    "name": "Flunixin meglumine (anti-endotoxic (low-dose, extra-label))",
+    "brandName": "Banamine",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 0.25,
+    "doseMax": 0.25,
+    "doseDefault": 0.25,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q8h",
+    "indications": [
+      "visceral/colic pain",
+      "anti-endotoxic (low dose)",
+      "musculoskeletal pain",
+      "fever"
+    ],
+    "cautions": "GI ulceration, right dorsal colitis, nephrotoxicity with dehydration; can mask surgical colic signs at full analgesic dose",
+    "notes": "Suppresses eicosanoid production without full analgesic masking of pain; per Blikslager Ch.2 — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "flunixin_meglumine_2",
+    "name": "Flunixin meglumine (laminitis (extra-label))",
+    "brandName": "Banamine",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 0.5,
+    "doseMax": 1.1,
+    "doseDefault": 0.5,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "PO"
+    ],
+    "frequency": "q8h",
+    "indications": [
+      "visceral/colic pain",
+      "anti-endotoxic (low dose)",
+      "musculoskeletal pain",
+      "fever"
+    ],
+    "cautions": "GI ulceration, right dorsal colitis, nephrotoxicity with dehydration; can mask surgical colic signs at full analgesic dose",
+    "notes": "source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "phenylbutazone",
+    "name": "Phenylbutazone",
+    "brandName": "Bute",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 2.2,
+    "doseMax": 4.4,
+    "doseDefault": 2.2,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "PO"
+    ],
+    "frequency": "q12h",
+    "indications": [
+      "musculoskeletal pain",
+      "fever"
+    ],
+    "cautions": "Higher ulcerogenic/nephrotoxic potential than flunixin; avoid in dehydrated/hypovolemic colic patients",
+    "notes": "IV only if perivascular leakage avoidable — severe tissue slough if perivascular — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "firocoxib",
+    "name": "Firocoxib",
+    "brandName": "Equioxx",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 0.1,
+    "doseMax": 0.1,
+    "doseDefault": 0.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "PO",
+      "IV"
+    ],
+    "frequency": "q24h",
+    "indications": [
+      "musculoskeletal pain, COX-2 selective"
+    ],
+    "cautions": "Not first-line for acute visceral/colic pain; slower onset",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "ketoprofen",
+    "name": "Ketoprofen",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 2.2,
+    "doseMax": 2.2,
+    "doseDefault": 2.2,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q24h",
+    "indications": [
+      "musculoskeletal and visceral pain"
+    ],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "meloxicam",
+    "name": "Meloxicam",
+    "categories": [
+      "NSAIDs / analgesics"
+    ],
+    "doseMin": 0.6,
+    "doseMax": 0.6,
+    "doseDefault": 0.6,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "PO"
+    ],
+    "frequency": "q24h",
+    "indications": [
+      "musculoskeletal pain, foal-friendly NSAID"
+    ],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "butorphanol_0",
+    "name": "Butorphanol (analgesia/sedation adjunct)",
+    "categories": [
+      "Opioids"
+    ],
+    "doseMin": 0.01,
+    "doseMax": 0.02,
+    "doseDefault": 0.01,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "visceral pain adjunct to alpha-2 agonist",
+      "sedation adjunct"
+    ],
+    "cautions": "Can decrease GI motility and cause excitement/ataxia if given alone without alpha-2 agonist at higher doses",
+    "notes": "low end for sedation top-up — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "butorphanol_1",
+    "name": "Butorphanol (full analgesic dose)",
+    "categories": [
+      "Opioids"
+    ],
+    "doseMin": 0.1,
+    "doseMax": 0.2,
+    "doseDefault": 0.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "IM"
+    ],
+    "frequency": "q4h",
+    "indications": [
+      "visceral pain adjunct to alpha-2 agonist",
+      "sedation adjunct"
+    ],
+    "cautions": "Can decrease GI motility and cause excitement/ataxia if given alone without alpha-2 agonist at higher doses",
+    "notes": "confirmed against 2026 literature (0.1–0.2 mg/kg IV/IM) — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "morphine_0",
+    "name": "Morphine (systemic (extra-label))",
+    "categories": [
+      "Opioids"
+    ],
+    "doseMin": 0.1,
+    "doseMax": 0.2,
+    "doseDefault": 0.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV slow",
+      "IM"
+    ],
+    "frequency": "q4h",
+    "indications": [
+      "severe refractory pain, epidural analgesia"
+    ],
+    "cautions": "Can cause CNS excitement / ileus if given IV rapidly or without sedative co-administration",
+    "notes": "Slow IV to reduce excitement; may combine with detomidine — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "morphine_1",
+    "name": "Morphine (epidural)",
+    "categories": [
+      "Opioids"
+    ],
+    "doseMin": 0.1,
+    "doseMax": 0.2,
+    "doseDefault": 0.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "epidural"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "severe refractory pain, epidural analgesia"
+    ],
+    "cautions": "Can cause CNS excitement / ileus if given IV rapidly or without sedative co-administration",
+    "notes": "diluted in saline, preservative-free — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "xylazine_0",
+    "name": "Xylazine (colic exam / standing sedation)",
+    "brandName": "Rompun",
+    "categories": [
+      "Alpha-2 agonists (sedation / visceral analgesia)"
+    ],
+    "doseMin": 0.2,
+    "doseMax": 1.1,
+    "doseDefault": 0.2,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "sedation",
+      "visceral analgesia for colic exam"
+    ],
+    "cautions": "Ecbolic in pregnant mares (relatively contraindicated in late gestation vs romifidine/detomidine); bradycardia, transient hyperglycemia, decreases GI motility",
+    "notes": "0.2–0.3 mg/kg = light/short sedation; 0.5–1.1 mg/kg = deeper. Confirmed range today. — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "xylazine_1",
+    "name": "Xylazine (IM)",
+    "brandName": "Rompun",
+    "categories": [
+      "Alpha-2 agonists (sedation / visceral analgesia)"
+    ],
+    "doseMin": 1.1,
+    "doseMax": 2.2,
+    "doseDefault": 1.1,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IM"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "sedation",
+      "visceral analgesia for colic exam"
+    ],
+    "cautions": "Ecbolic in pregnant mares (relatively contraindicated in late gestation vs romifidine/detomidine); bradycardia, transient hyperglycemia, decreases GI motility",
+    "notes": "source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "detomidine_0",
+    "name": "Detomidine (low-dose colic exam (preferred before dx is settled, to avoid masking surgical signs))",
+    "brandName": "Dormosedan",
+    "categories": [
+      "Alpha-2 agonists (sedation / visceral analgesia)"
+    ],
+    "doseMin": 0.005,
+    "doseMax": 0.015,
+    "doseDefault": 0.005,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "sedation",
+      "visceral analgesia for colic exam"
+    ],
+    "cautions": "Longer, deeper sedation than xylazine; higher doses can mask surgical-colic pain signs",
+    "notes": "= 5–15 mcg/kg IV — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "detomidine_1",
+    "name": "Detomidine (standard sedation)",
+    "brandName": "Dormosedan",
+    "categories": [
+      "Alpha-2 agonists (sedation / visceral analgesia)"
+    ],
+    "doseMin": 0.01,
+    "doseMax": 0.04,
+    "doseDefault": 0.01,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "IM"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "sedation",
+      "visceral analgesia for colic exam"
+    ],
+    "cautions": "Longer, deeper sedation than xylazine; higher doses can mask surgical-colic pain signs",
+    "notes": "= 10–40 mcg/kg; confirmed range today — source: verified_today",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "romifidine",
+    "name": "Romifidine",
+    "brandName": "Sedivet",
+    "categories": [
+      "Alpha-2 agonists (sedation / visceral analgesia)"
+    ],
+    "doseMin": 0.04,
+    "doseMax": 0.12,
+    "doseDefault": 0.04,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "sedation",
+      "visceral analgesia"
+    ],
+    "cautions": "Less ataxia than detomidine/xylazine at equivalent sedation; preferred choice in pregnant mares by some clinicians",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "n_butylscopolammonium_bromide",
+    "name": "N-butylscopolammonium bromide",
+    "brandName": "Buscopan",
+    "categories": [
+      "Antispasmodics"
+    ],
+    "doseMin": 0.3,
+    "doseMax": 0.3,
+    "doseDefault": 0.3,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "spasmolytic for rectal exam",
+      "impaction colic adjunct"
+    ],
+    "cautions": "",
+    "notes": "transient tachycardia (anticholinergic) for ~30 min; single dose typically — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "lidocaine_cri_0",
+    "name": "Lidocaine (CRI) (loading dose)",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 1.3,
+    "doseMax": 1.3,
+    "doseDefault": 1.3,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV bolus over 10-15min"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "postoperative ileus",
+      "systemic analgesia/anti-inflammatory adjunct"
+    ],
+    "cautions": "Toxic signs (twitching, ataxia, seizure) — stop CRI if seen; avoid in patients with pre-existing arrhythmia at high doses",
+    "notes": "source: memory_standard_reference_matches_skill",
+    "isCRI": true,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "lidocaine_cri_1",
+    "name": "Lidocaine (CRI) (CRI maintenance)",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 3,
+    "doseMax": 3,
+    "doseDefault": 3,
+    "doseUnit": "mg/kg/h",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV CRI"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "postoperative ileus",
+      "systemic analgesia/anti-inflammatory adjunct"
+    ],
+    "cautions": "Toxic signs (twitching, ataxia, seizure) — stop CRI if seen; avoid in patients with pre-existing arrhythmia at high doses",
+    "notes": "= 0.05 mg/kg/min; per colic skill Ch.20/Ch.7. Do not exceed — toxicity: muscle fasciculations, seizures — source: memory_standard_reference_matches_skill",
+    "isCRI": true,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "metoclopramide",
+    "name": "Metoclopramide",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 0.04,
+    "doseMax": 0.04,
+    "doseDefault": 0.04,
+    "doseUnit": "mg/kg/h",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV CRI"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "prokinetic, mainly upper GI/gastric"
+    ],
+    "cautions": "Extrapyramidal/behavioral side effects (excitement, colic-like signs) in horses; used less commonly than lidocaine now",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "erythromycin_prokinetic_low_dose",
+    "name": "Erythromycin (prokinetic, low dose)",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 0.5,
+    "doseMax": 1,
+    "doseDefault": 0.5,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV slow infusion"
+    ],
+    "frequency": "q6h",
+    "indications": [
+      "ileus, motilin-receptor agonist effect"
+    ],
+    "cautions": "Risk of antimicrobial-associated colitis, especially if used at antimicrobial doses; hyperthermia in foals",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "bethanechol_colic",
+    "name": "Bethanechol",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 0.025,
+    "doseMax": 0.03,
+    "doseDefault": 0.025,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "SC"
+    ],
+    "frequency": "q3h",
+    "indications": [
+      "prokinetic, cecal/colonic"
+    ],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "neostigmine",
+    "name": "Neostigmine",
+    "categories": [
+      "Prokinetics"
+    ],
+    "doseMin": 0.0022,
+    "doseMax": 0.0044,
+    "doseDefault": 0.0022,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "SC",
+      "IV slow"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "prokinetic — use cautiously, mainly large-colon stimulation"
+    ],
+    "cautions": "Can worsen pain/spasm if obstruction not ruled out; controversial post-op use",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "polymyxin_b",
+    "name": "Polymyxin B",
+    "categories": [
+      "Anti-endotoxic / adjunctive"
+    ],
+    "doseMin": 1000,
+    "doseMax": 6000,
+    "doseDefault": 1000,
+    "doseUnit": "IU/kg",
+    "concentration": 300000,
+    "concentrationUnit": "IU/mL",
+    "route": [
+      "IV",
+      "diluted in fluids"
+    ],
+    "frequency": "q8h",
+    "indications": [
+      "LPS binding, anti-endotoxic"
+    ],
+    "cautions": "Nephrotoxic; do not use in significant renal compromise or dehydration without correction first",
+    "notes": "commonly cited as ~1000–6000 IU/kg q8-12h; nephrotoxic — avoid/adjust in azotemic patients — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "pentoxifylline",
+    "name": "Pentoxifylline",
+    "categories": [
+      "Anti-endotoxic / adjunctive"
+    ],
+    "doseMin": 8,
+    "doseMax": 10,
+    "doseDefault": 8,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "PO",
+      "IV slow"
+    ],
+    "frequency": "q12h",
+    "indications": [
+      "rheologic/anti-inflammatory adjunct in endotoxemia, laminitis prophylaxis"
+    ],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "hypertonic_saline_7_2",
+    "name": "Hypertonic saline 7.2%",
+    "categories": [
+      "Anti-endotoxic / adjunctive"
+    ],
+    "doseMin": 4,
+    "doseMax": 4,
+    "doseDefault": 4,
+    "doseUnit": "mL/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [
+      "fast-window shock resuscitation"
+    ],
+    "cautions": "",
+    "notes": "must be followed by ≥5x volume of isotonic crystalloids within ~1h; effect otherwise transient. Matches colic skill Ch.6. — source: memory_standard_reference_matches_skill",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "penicillin_g_potassium_sodium",
+    "name": "Penicillin G (potassium/sodium)",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 22000,
+    "doseMax": 44000,
+    "doseDefault": 22000,
+    "doseUnit": "IU/kg",
+    "concentration": 300000,
+    "concentrationUnit": "IU/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q6h",
+    "indications": [],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "procaine_penicillin_g",
+    "name": "Procaine penicillin G",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 22000,
+    "doseMax": 22000,
+    "doseDefault": 22000,
+    "doseUnit": "IU/kg",
+    "concentration": 300000,
+    "concentrationUnit": "IU/mL",
+    "route": [
+      "IM"
+    ],
+    "frequency": "q12h",
+    "indications": [],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "gentamicin",
+    "name": "Gentamicin",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 6.6,
+    "doseMax": 8,
+    "doseDefault": 6.6,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q24h",
+    "indications": [],
+    "cautions": "Nephrotoxic, ototoxic; contraindicated/adjust in hypovolemic or azotemic patients",
+    "notes": "requires adequate hydration; nephrotoxic — check renal values / trough if prolonged use — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "ceftiofur_sodium",
+    "name": "Ceftiofur sodium",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 2.2,
+    "doseMax": 4.4,
+    "doseDefault": 2.2,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV",
+      "IM"
+    ],
+    "frequency": "q12h",
+    "indications": [],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "metronidazole",
+    "name": "Metronidazole",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 15,
+    "doseMax": 25,
+    "doseDefault": 15,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "PO",
+      "IV slow"
+    ],
+    "frequency": "q8h",
+    "indications": [
+      "anaerobic coverage, colitis/peritonitis"
+    ],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "trimethoprim_sulfamethoxazole",
+    "name": "Trimethoprim-sulfamethoxazole",
+    "categories": [
+      "Antimicrobials"
+    ],
+    "doseMin": 20,
+    "doseMax": 30,
+    "doseDefault": 20,
+    "doseUnit": "mg/kg (combined)",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q12h",
+    "indications": [],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "isotonic_crystalloid_lrs_plasma_lyte_shock_dose",
+    "name": "Isotonic crystalloid (LRS/Plasma-Lyte)  shock dose",
+    "categories": [
+      "Fluids / electrolytes"
+    ],
+    "doseMin": 60,
+    "doseMax": 90,
+    "doseDefault": 60,
+    "doseUnit": "mL/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV"
+    ],
+    "frequency": "PRN",
+    "indications": [],
+    "cautions": "",
+    "notes": "as an initial bolus/first-hour ceiling, titrated to perfusion parameters, not a fixed single push. Matches colic skill Ch.6. — source: memory_standard_reference_matches_skill",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "calcium_borogluconate_23",
+    "name": "Calcium borogluconate 23%",
+    "categories": [
+      "Fluids / electrolytes"
+    ],
+    "doseMin": 0.2,
+    "doseMax": 0.4,
+    "doseDefault": 0.2,
+    "doseUnit": "mg/kg elemental Ca (or ~0.2-0.4 mL/kg of 23% solution)",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV slow",
+      "diluted"
+    ],
+    "frequency": "PRN",
+    "indications": [],
+    "cautions": "",
+    "notes": "monitor heart rate/rhythm during administration — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "magnesium_sulfate_iv_for_hypomagnesemia",
+    "name": "Magnesium sulfate (IV, for hypomagnesemia)",
+    "categories": [
+      "Fluids / electrolytes"
+    ],
+    "doseMin": 25,
+    "doseMax": 50,
+    "doseDefault": 25,
+    "doseUnit": "mg/kg (as MgSO4)",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "IV CRI",
+      "diluted"
+    ],
+    "frequency": "PRN",
+    "indications": [],
+    "cautions": "",
+    "notes": "given as slow CRI over hours, not bolus — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "mineral_oil",
+    "name": "Mineral oil",
+    "categories": [
+      "Laxatives / GI adjuncts"
+    ],
+    "doseMin": 2,
+    "doseMax": 4,
+    "doseDefault": 2,
+    "doseUnit": "L total (not weight-based; ~4-8 mL/kg)",
+    "concentration": 100,
+    "concentrationUnit": "%",
+    "route": [
+      "nasogastric"
+    ],
+    "frequency": "q24h",
+    "indications": [
+      "impaction colic, lubricant laxative"
+    ],
+    "cautions": "Never give if aspiration risk / no swallow reflex confirmed; risk of lipoid pneumonia if aspirated",
+    "notes": "app should allow either fixed-liter or mL/kg entry — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "magnesium_sulfate_oral_epsom_salt_cathartic",
+    "name": "Magnesium sulfate (oral, Epsom salt)  cathartic",
+    "categories": [
+      "Laxatives / GI adjuncts"
+    ],
+    "doseMin": 0.5,
+    "doseMax": 1,
+    "doseDefault": 0.5,
+    "doseUnit": "g/kg",
+    "concentration": 100,
+    "concentrationUnit": "%",
+    "route": [
+      "nasogastric",
+      "in water"
+    ],
+    "frequency": "PRN",
+    "indications": [],
+    "cautions": "",
+    "notes": "risk of hypermagnesemia/dehydration with repeated dosing — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "psyllium",
+    "name": "Psyllium",
+    "categories": [
+      "Laxatives / GI adjuncts"
+    ],
+    "doseMin": 0.5,
+    "doseMax": 1,
+    "doseDefault": 0.5,
+    "doseUnit": "g/kg",
+    "concentration": 100,
+    "concentrationUnit": "%",
+    "route": [
+      "PO/nasogastric"
+    ],
+    "frequency": "q24h",
+    "indications": [],
+    "cautions": "",
+    "notes": "source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
+  },
+  {
+    "id": "docusate_sodium_dss",
+    "name": "Docusate sodium (DSS)",
+    "categories": [
+      "Laxatives / GI adjuncts"
+    ],
+    "doseMin": 10,
+    "doseMax": 20,
+    "doseDefault": 10,
+    "doseUnit": "mg/kg",
+    "concentration": 100,
+    "concentrationUnit": "mg/mL",
+    "route": [
+      "nasogastric"
+    ],
+    "frequency": "PRN",
+    "indications": [],
+    "cautions": "",
+    "notes": "do NOT combine with mineral oil (surfactant increases mucosal absorption of oil); allow washout between agents — source: memory_standard_reference",
+    "isCRI": false,
+    "patientType": "ADULT"
   }
 ];
