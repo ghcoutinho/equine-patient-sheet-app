@@ -1,5 +1,6 @@
 import React from 'react';
 import { Patient } from '../../types';
+import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
 
 interface LiveIntelligenceViewProps {
   patient: Patient;
@@ -10,6 +11,9 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
   patient,
   onOpenNewAssessment,
 }) => {
+  const latest = latestColumn(patient.flowsheetHistory);
+  const triggers = evaluateCallSurgeonTriggers(latest);
+
   return (
     <div className="flex-1 flex flex-col md:flex-row overflow-y-auto bg-[#F8FAFC]">
       {/* Left Dummy/Context Pane */}
@@ -75,40 +79,45 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
               </div>
             )}
 
-            {/* Note Alerts */}
-            <div className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-3 mb-2 flex items-start justify-between">
-              <div className="flex gap-3">
-                <span className="material-symbols-outlined text-[#B45309] mt-0.5">info</span>
-                <div>
-                  <div className="font-body-md text-sm text-[#0b1c30] font-semibold leading-tight">
-                    Elevated Lactate Trend
-                  </div>
-                  <div className="font-derived-value text-xs text-[#434655] mt-0.5">
-                    Increasing over 4h.
-                  </div>
-                </div>
+            {/* Call-surgeon triggers, computed from the latest charted round */}
+            {triggers.length === 0 ? (
+              <div className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-3 text-xs text-[#434655] font-derived-value">
+                No call-surgeon triggers on the latest round
+                {latest ? ` (${latest.time})` : ' — no round charted yet'}.
               </div>
-              <span className="text-[10px] bg-[#d3e4fe] text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7]">
-                [Bottegaro]
-              </span>
-            </div>
-
-            <div className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-3 flex items-start justify-between">
-              <div className="flex gap-3">
-                <span className="material-symbols-outlined text-[#B45309] mt-0.5">info</span>
-                <div>
-                  <div className="font-body-md text-sm text-[#0b1c30] font-semibold leading-tight">
-                    Reflux Volume Warning
+            ) : (
+              triggers.map((t) => (
+                <div
+                  key={t.id}
+                  className={`rounded p-3 mb-2 flex items-start justify-between border ${
+                    t.severity === 'critical'
+                      ? 'bg-[#B91C1C]/5 border-[#B91C1C]/30'
+                      : 'bg-[#FFF7ED] border-[#C2410C]/30'
+                  }`}
+                >
+                  <div className="flex gap-3">
+                    <span
+                      className={`material-symbols-outlined mt-0.5 ${
+                        t.severity === 'critical' ? 'text-[#B91C1C]' : 'text-[#C2410C]'
+                      }`}
+                    >
+                      {t.severity === 'critical' ? 'warning' : 'info'}
+                    </span>
+                    <div>
+                      <div className="font-body-md text-sm text-[#0b1c30] font-semibold leading-tight">
+                        {t.label}
+                      </div>
+                      <div className="font-derived-value text-xs text-[#434655] mt-0.5">
+                        {t.evidence} · rule: {t.rule}
+                      </div>
+                    </div>
                   </div>
-                  <div className="font-derived-value text-xs text-[#434655] mt-0.5">
-                    Net &gt; 4L in last 2h.
-                  </div>
+                  <span className="text-[10px] bg-white text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7] whitespace-nowrap">
+                    [Ward rule]
+                  </span>
                 </div>
-              </div>
-              <span className="text-[10px] bg-[#d3e4fe] text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7]">
-                [Bottegaro]
-              </span>
-            </div>
+              ))
+            )}
           </div>
         </section>
 

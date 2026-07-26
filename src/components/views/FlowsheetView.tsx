@@ -1,5 +1,17 @@
 import React, { useState } from 'react';
-import { Patient, FlowsheetColumn } from '../../types';
+import { Patient, FlowsheetColumn, AssessmentSeverity } from '../../types';
+import { GutSoundsGlyph } from '../ui/GutSoundsQuadrant';
+import { formatManure } from '../../utils/manure';
+import { severityOf } from '../../data/clinicalAssessments';
+import { summariseGutSounds } from '../../utils/gutSounds';
+import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
+
+const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
+  normal: 'text-[#047857]',
+  watch: 'bg-[#FFFBEB] text-[#B45309] font-bold',
+  warning: 'bg-[#FFF7ED] text-[#C2410C] font-bold',
+  critical: 'bg-[#B91C1C] text-white font-bold',
+};
 
 interface FlowsheetViewProps {
   patient: Patient;
@@ -85,6 +97,64 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     if (val > 2.0) return 'bg-[#FFF7ED] text-[#C2410C] font-bold';
     return 'text-[#047857]';
   };
+
+  const colCount = patient.flowsheetHistory.length + 2;
+
+  /** Section divider row. */
+  const sectionRow = (label: string, accent: string) => (
+    <tr>
+      <td
+        colSpan={colCount}
+        className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs uppercase tracking-wider font-bold"
+        style={{ color: accent }}
+      >
+        {label}
+      </td>
+    </tr>
+  );
+
+  /**
+   * Row for a structured (non-numeric) finding. Cells are coloured by the
+   * finding's triage severity; an unrecorded cell stays visibly empty so
+   * "not assessed" never reads as a normal result.
+   */
+  const structuredRow = (
+    key: string,
+    label: string,
+    accent: string,
+    read: (col: FlowsheetColumn) => string | undefined,
+    definitionId?: string,
+  ) => {
+    const anyValue = patient.flowsheetHistory.some((c) => read(c) !== undefined);
+    if (!anyValue) return null;
+    return (
+      <tr key={key} className="group hover:bg-[#f8f9ff] transition relative">
+        <td className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-r border-[#E2E8F0] group-hover:bg-[#f8f9ff]">
+          <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accent }} />
+          <span className="text-[#0b1c30] font-bold">{label}</span>
+        </td>
+        {patient.flowsheetHistory.map((col, idx) => {
+          const v = read(col);
+          const sev = definitionId ? severityOf(definitionId, v) : 'normal';
+          return (
+            <td
+              key={idx}
+              className={`px-3 py-3 border-b border-r border-[#E2E8F0] text-center text-xs leading-tight ${
+                v ? SEVERITY_CELL[sev] : 'text-[#94a3b8]'
+              }`}
+            >
+              {v ?? '--'}
+            </td>
+          );
+        })}
+        <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff] text-[10px] text-[#747686] font-sans">
+          Record round
+        </td>
+      </tr>
+    );
+  };
+
+  const triggers = evaluateCallSurgeonTriggers(latestColumn(patient.flowsheetHistory));
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F8FAFC]">
@@ -210,12 +280,103 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                   </td>
                 </tr>
 
+                {structuredRow(
+                  'crt',
+                  'CRT',
+                  '#1D4ED8',
+                  (c) => (c.vitals.crtSeconds !== undefined ? `${c.vitals.crtSeconds} s` : undefined),
+                )}
+                {structuredRow(
+                  'mm',
+                  'Mucous membranes',
+                  '#1D4ED8',
+                  (c) => c.vitals.mucousMembranes,
+                  'mucousMembranes',
+                )}
+                {structuredRow(
+                  'mentation',
+                  'Mentation',
+                  '#1D4ED8',
+                  (c) => c.vitals.mentation,
+                  'mentation',
+                )}
+
+                {/* Section Header: Pain */}
+                {patient.flowsheetHistory.some((c) => c.pain) && (
+                  <>
+                    {sectionRow('Pain & Analgesia', '#6D28D9')}
+                    {structuredRow(
+                      'pain-score',
+                      'Pain score',
+                      '#6D28D9',
+                      (c) => (c.pain?.score !== undefined ? `${c.pain.score}/3` : undefined),
+                    )}
+                    {structuredRow(
+                      'pain-behaviour',
+                      'Pain behaviour',
+                      '#6D28D9',
+                      (c) => c.pain?.behaviour,
+                      'painBehaviour',
+                    )}
+                    {structuredRow(
+                      'analgesia',
+                      'Analgesia given',
+                      '#6D28D9',
+                      (c) => c.pain?.analgesia,
+                      'analgesia',
+                    )}
+                  </>
+                )}
+
                 {/* Section Header: GI / Colic */}
                 <tr>
                   <td colSpan={patient.flowsheetHistory.length + 2} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#B45309] uppercase tracking-wider font-bold">
                     GI / Colic
                   </td>
                 </tr>
+
+                {/* Row: Gut sounds — four quadrants */}
+                {patient.flowsheetHistory.some((c) => c.gi.gutSounds) && (
+                  <tr className="group hover:bg-[#f8f9ff] transition relative">
+                    <td className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-r border-[#E2E8F0] group-hover:bg-[#f8f9ff]">
+                      <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#B45309]" />
+                      <div className="flex flex-col">
+                        <span className="text-[#0b1c30] font-bold">Gut sounds</span>
+                        <span className="text-[10px] text-[#434655] uppercase font-sans">
+                          4 quadrants
+                        </span>
+                      </div>
+                    </td>
+                    {patient.flowsheetHistory.map((col, idx) => {
+                      const q = col.gi.gutSounds;
+                      if (!q) {
+                        return (
+                          <td
+                            key={idx}
+                            className="px-3 py-2 border-b border-r border-[#E2E8F0] text-center text-[#94a3b8]"
+                          >
+                            --
+                          </td>
+                        );
+                      }
+                      const s = summariseGutSounds(q);
+                      return (
+                        <td
+                          key={idx}
+                          className="px-3 py-2 border-b border-r border-[#E2E8F0] text-center align-middle"
+                        >
+                          <GutSoundsGlyph value={q} size={40} />
+                          <span className="block text-[9px] text-[#747686] font-sans mt-0.5">
+                            {s.activeQuadrants}/4 active
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff] text-[10px] text-[#747686] font-sans">
+                      Record round
+                    </td>
+                  </tr>
+                )}
 
                 {/* Row: Reflux Volume */}
                 <tr className="group hover:bg-[#f8f9ff] transition relative">
@@ -244,6 +405,55 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                     />
                   </td>
                 </tr>
+
+                {structuredRow(
+                  'reflux-appearance',
+                  'Reflux appearance',
+                  '#B45309',
+                  (c) => c.gi.refluxAppearance,
+                  'refluxAppearance',
+                )}
+                {structuredRow(
+                  'ngt',
+                  'Nasogastric tube',
+                  '#B45309',
+                  (c) => c.gi.nasogastricTube,
+                  'nasogastricTube',
+                )}
+                {structuredRow(
+                  'manure',
+                  'Manure passed',
+                  '#B45309',
+                  (c) => (c.gi.manure ? formatManure(c.gi.manure) : undefined),
+                )}
+                {structuredRow(
+                  'rectal',
+                  'Rectal examination',
+                  '#B45309',
+                  (c) => c.gi.rectalExam,
+                  'rectalExam',
+                )}
+                {structuredRow(
+                  'flash',
+                  'FLASH ultrasound',
+                  '#B45309',
+                  (c) => c.gi.flashUltrasound,
+                  'flashUltrasound',
+                )}
+                {structuredRow(
+                  'peritoneal',
+                  'Peritoneal fluid',
+                  '#B45309',
+                  (c) => c.gi.peritonealFluid,
+                  'peritonealFluid',
+                )}
+                {structuredRow(
+                  'response',
+                  'Response to therapy',
+                  '#B45309',
+                  (c) => c.gi.responseToTherapy,
+                  'responseToTherapy',
+                )}
 
                 {/* Section Header: Labs */}
                 <tr>
@@ -280,6 +490,57 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                     />
                   </td>
                 </tr>
+
+                {/* Section: Laminitis watch */}
+                {patient.flowsheetHistory.some((c) => c.laminitis) && (
+                  <>
+                    {sectionRow('Laminitis Watch', '#A21CAF')}
+                    {structuredRow(
+                      'digital-pulse',
+                      'Digital pulse',
+                      '#A21CAF',
+                      (c) => c.laminitis?.digitalPulse,
+                      'digitalPulse',
+                    )}
+                    {structuredRow(
+                      'obel',
+                      'Obel grade',
+                      '#A21CAF',
+                      (c) =>
+                        c.laminitis?.obelGrade !== undefined
+                          ? `${c.laminitis.obelGrade}/4`
+                          : undefined,
+                    )}
+                    {structuredRow(
+                      'cryo',
+                      'Cryotherapy',
+                      '#A21CAF',
+                      (c) => c.laminitis?.cryotherapy,
+                      'cryotherapy',
+                    )}
+                  </>
+                )}
+
+                {/* Section: Catheter & incision */}
+                {patient.flowsheetHistory.some((c) => c.support) && (
+                  <>
+                    {sectionRow('Catheter & Incision', '#0E7490')}
+                    {structuredRow(
+                      'catheter',
+                      'IV catheter site',
+                      '#0E7490',
+                      (c) => c.support?.ivCatheterSite,
+                      'ivCatheterSite',
+                    )}
+                    {structuredRow(
+                      'incision',
+                      'Incision status',
+                      '#0E7490',
+                      (c) => c.support?.incisionStatus,
+                      'incisionStatus',
+                    )}
+                  </>
+                )}
               </tbody>
             </table>
 
@@ -327,6 +588,40 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Call-surgeon triggers, computed from the latest charted round */}
+            {triggers.length > 0 && (
+              <div className="mt-3" role="status" aria-live="polite">
+                <p className="font-label-caps text-[11px] text-[#B91C1C] font-bold uppercase tracking-wider mb-1.5">
+                  Call-surgeon triggers · {triggers.length}
+                </p>
+                <ul className="space-y-1.5">
+                  {triggers.map((t) => (
+                    <li
+                      key={t.id}
+                      className="bg-white border border-[#E2E8F0] rounded p-2 flex items-start gap-2"
+                    >
+                      <span
+                        className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          t.severity === 'critical' ? 'bg-[#B91C1C]' : 'bg-[#C2410C]'
+                        }`}
+                        aria-hidden
+                      />
+                      <span className="text-xs leading-tight">
+                        <span className="font-bold text-[#0b1c30] block">{t.label}</span>
+                        <span className="text-[#434655]">{t.evidence}</span>
+                        <span className="block text-[10px] text-[#747686] font-sans">
+                          {t.rule}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[9px] text-[#747686] font-sans mt-1.5">
+                  Ward escalation rules — decision support only.
+                </p>
               </div>
             )}
           </div>
