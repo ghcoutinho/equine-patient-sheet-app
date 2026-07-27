@@ -19,6 +19,14 @@ import {
   QUICK_LABS,
   type LabParameterRange,
 } from '../../data/cornellReferenceRanges';
+import {
+  BREED_ERYTHRON,
+  TYPE_ERYTHRON,
+  HAEMOSTASIS_PANEL,
+  EQUINE_INTERNAL_MEDICINE_SOURCE,
+  breedErythronFor,
+  breedInterval,
+} from '../../data/breedReferenceRanges';
 
 interface ReferenceRangesViewProps {
   patient: Patient;
@@ -69,6 +77,8 @@ export const ReferenceRangesView: React.FC<ReferenceRangesViewProps> = ({ patien
     patient.age,
     patient.isFoal || patient.category === 'NEONATAL_FOAL',
   );
+
+  const patientBreed = useMemo(() => breedErythronFor(patient.breed), [patient.breed]);
 
   const foalRows = useMemo(
     () => ALL_FOAL_PARAMETERS.filter((p) => p.byAge[ageClass] !== undefined),
@@ -283,6 +293,135 @@ export const ReferenceRangesView: React.FC<ReferenceRangesViewProps> = ({ patien
         </>
       )}
 
+      {/* Breed-stratified erythron — adults only */}
+      {ageClass === 'ADULT' && (
+        <>
+          <Panel title="Erythron by breed" count={BREED_ERYTHRON.length}>
+            <table className="w-full text-left border-collapse min-w-[640px]">
+              <thead>
+                <tr className="font-label-caps text-[11px] text-[#434655]">
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Breed</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">RBC ×10⁶/µL</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Hgb g/dL</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">PCV %</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">MCV fL</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">MCHC %</th>
+                </tr>
+              </thead>
+              <tbody className="font-clinical-value text-sm tabular-nums">
+                {BREED_ERYTHRON.map((b) => {
+                  const isPatient =
+                    patientBreed?.breed === b.breed;
+                  const cell = (v?: { mean: number; sd?: number }) =>
+                    v ? `${v.mean}${v.sd !== undefined ? ` ± ${v.sd}` : ''}` : '—';
+                  return (
+                    <tr
+                      key={b.breed}
+                      className={isPatient ? 'bg-[#e5eeff]' : 'hover:bg-[#f8f9ff]'}
+                    >
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] font-body-md text-[#0b1c30]">
+                        {b.breed}
+                        {isPatient && (
+                          <span className="block text-[9px] font-sans uppercase tracking-wider text-[#0037b0]">
+                            this patient
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0]">{cell(b.rbc)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0]">{cell(b.hgb)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0]">
+                        {cell(b.pcv)}
+                        {breedInterval(b.pcv) && (
+                          <span className="block text-[10px] text-[#747686] font-sans">
+                            ±2 SD: {breedInterval(b.pcv)!.min}–{breedInterval(b.pcv)!.max}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0]">{cell(b.mcv)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0]">{cell(b.mchc)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="px-4 py-2 font-derived-value text-[11px] text-[#747686]">
+              Mean ± SD, not reference intervals. ±2 SD is shown for PCV as the conventional
+              stand-in.
+            </p>
+          </Panel>
+
+          <Panel title="Erythron by type" count={TYPE_ERYTHRON.length}>
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="font-label-caps text-[11px] text-[#434655]">
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Type</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">RBC ×10⁶/µL</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Hgb g/dL</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">PCV %</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">MCV fL</th>
+                </tr>
+              </thead>
+              <tbody className="font-clinical-value text-sm tabular-nums">
+                {TYPE_ERYTHRON.map((t) => {
+                  const r = (v?: { min: number; max: number }) =>
+                    v ? `${v.min}–${v.max}` : '—';
+                  return (
+                    <tr key={t.type} className="hover:bg-[#f8f9ff]">
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] font-body-md text-[#0b1c30]">
+                        {t.type}
+                        <span className="block font-derived-value text-[10px] text-[#747686]">
+                          {t.sourceNote}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#047857]">{r(t.rbc)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#047857]">{r(t.hgb)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#047857]">{r(t.pcv)}</td>
+                      <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#047857]">{r(t.mcv)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Panel>
+
+          <Panel title="Haemostasis" count={HAEMOSTASIS_PANEL.length}>
+            <table className="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr className="font-label-caps text-[11px] text-[#434655]">
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Parameter</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Units</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Value</th>
+                  <th className="px-4 py-2 border-b border-[#E2E8F0]">Reference</th>
+                </tr>
+              </thead>
+              <tbody className="font-clinical-value text-sm tabular-nums">
+                {HAEMOSTASIS_PANEL.map((h, i) => (
+                  <tr key={`${h.parameter}-${i}`} className="hover:bg-[#f8f9ff]">
+                    <td className="px-4 py-2 border-b border-[#E2E8F0] font-body-md text-[#0b1c30]">
+                      {h.parameter}
+                      {h.unitWarning && (
+                        <span className="block font-derived-value text-[10px] text-[#B45309]">
+                          ⚠ {h.unitWarning}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#747686] text-xs">
+                      {h.units}
+                    </td>
+                    <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#047857]">
+                      {h.display}
+                    </td>
+                    <td className="px-4 py-2 border-b border-[#E2E8F0] text-[#747686] text-[11px] font-sans">
+                      {h.reference}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        </>
+      )}
+
       {/* Sources */}
       <section className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-5">
         <h2 className="font-label-caps text-xs uppercase tracking-wider font-bold text-[#0b1c30] mb-3">
@@ -316,6 +455,16 @@ export const ReferenceRangesView: React.FC<ReferenceRangesViewProps> = ({ patien
               </li>
             );
           })}
+          {ageClass === 'ADULT' && (
+            <li className="font-body-md text-xs text-[#0b1c30]">
+              {EQUINE_INTERNAL_MEDICINE_SOURCE}
+              <span className="block font-derived-value text-[11px] text-[#B45309] mt-1">
+                Breed and type values are mean ± SD or ranges compiled from several primary
+                studies, listed per row. The source states these numbers are for reference only
+                and that each laboratory should establish its own equine values.
+              </span>
+            </li>
+          )}
         </ol>
         <p className="font-derived-value text-[11px] text-[#747686] mt-4">
           Reference intervals are population- and analyser-specific. Confirm against your own
