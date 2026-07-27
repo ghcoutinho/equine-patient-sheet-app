@@ -370,6 +370,43 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
               </p>
             )}
 
+            {/* Dosing that changes with foal age */}
+            {selected.foalAgeBands && selected.foalAgeBands.length > 0 && (
+              <div className="rounded border border-[#B45309]/30 bg-[#FFFBEB] overflow-hidden">
+                <div className="px-3 py-1.5 border-b border-[#B45309]/20">
+                  <span className="font-label-caps text-[10px] text-[#B45309] font-bold uppercase tracking-wider">
+                    Dose varies with foal age
+                  </span>
+                </div>
+                <table className="w-full text-left border-collapse">
+                  <tbody className="text-xs">
+                    {selected.foalAgeBands.map((band) => (
+                      <tr key={band.label} className="border-b border-[#B45309]/10 last:border-0">
+                        <td className="px-3 py-1.5 font-body-md text-[#0b1c30] whitespace-nowrap">
+                          {band.label}
+                        </td>
+                        <td className="px-3 py-1.5 font-clinical-value text-[#0b1c30]">
+                          {band.dose}
+                        </td>
+                        <td className="px-3 py-1.5 text-[#747686] font-sans whitespace-nowrap">
+                          {[band.route, band.frequency].filter(Boolean).join(' · ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="px-3 py-1.5 font-derived-value text-[10px] text-[#B45309]">
+                  The slider above uses a single figure. Pick the band that matches this foal.
+                </p>
+              </div>
+            )}
+
+            {selected.sourceNote && (
+              <p className="font-derived-value text-[11px] text-[#747686]">
+                Source: {selected.sourceNote}
+              </p>
+            )}
+
             {selected.indications?.length > 0 && (
               <div>
                 <span className="font-label-caps text-[10px] text-[#434655] block mb-1">

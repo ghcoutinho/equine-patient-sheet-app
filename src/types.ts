@@ -207,6 +207,14 @@ export interface DrugFormularyItem {
   notes: string;
   isCRI: boolean;
   patientType: PatientType;
+  /**
+   * Dosing that changes with foal age, where the source stratifies it.
+   * Neonatal clearance is lower and volume of distribution larger, so a single
+   * mg/kg figure is wrong for at least one age band.
+   */
+  foalAgeBands?: { label: string; dose: string; route?: string; frequency?: string }[];
+  /** Provenance for entries taken from a specific published table. */
+  sourceNote?: string;
 }
 
 export interface ScoreBounds {

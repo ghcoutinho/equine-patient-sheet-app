@@ -4546,5 +4546,481 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "notes": "do NOT combine with mineral oil (surfactant increases mucosal absorption of oil); allow washout between agents — source: memory_standard_reference",
     "isCRI": false,
     "patientType": "ADULT"
+  },
+
+  // ---------------------------------------------------------------------------
+  // Foal antimicrobials from Equine Internal Medicine 4th ed. Table 20.14.
+  // Doses, routes and frequencies verbatim. Concentration is left at 0 because
+  // the table does not give product concentrations — the calculator asks for
+  // the concentration on the bottle rather than assuming one.
+  // ---------------------------------------------------------------------------
+  {
+    "id": "amoxicillin_trihydrate_foal",
+    "name": "Amoxicillin trihydrate (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 10,
+    "doseMax": 20,
+    "doseDefault": 15,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IM"
+    ],
+    "frequency": "q8",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "Oral dosing 20–30 mg/kg q6–8h also listed.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "cefazolin_foal",
+    "name": "Cefazolin (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 25,
+    "doseMax": 25,
+    "doseDefault": 25,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IM"
+    ],
+    "frequency": "q6-8",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "cefepime_foal",
+    "name": "Cefepime (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 11,
+    "doseMax": 11,
+    "doseDefault": 11,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IV",
+      "IM"
+    ],
+    "frequency": "q8",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "Fourth-generation cephalosporin; useful in multidrug-resistant infections.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "cefpodoxime_foal",
+    "name": "Cefpodoxime proxetil (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 10,
+    "doseMax": 10,
+    "doseDefault": 10,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q6-12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "Cost often limits use.",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "cephalexin_foal",
+    "name": "Cephalexin (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 30,
+    "doseMax": 30,
+    "doseDefault": 30,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q8",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "ceftriaxone_foal",
+    "name": "Ceftriaxone (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 25,
+    "doseMax": 25,
+    "doseDefault": 25,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "chloramphenicol_foal",
+    "name": "Chloramphenicol (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 50,
+    "doseMax": 50,
+    "doseDefault": 50,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q6",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "Human aplastic anaemia risk on exposure; handle with gloves.",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "clarithromycin_foal",
+    "name": "Clarithromycin (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 7.5,
+    "doseMax": 7.5,
+    "doseDefault": 7.5,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Rhodococcus equi pneumonia"
+    ],
+    "cautions": "Hyperthermia in foals; combine with rifampin.",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "imipenem_cilastatin_foal",
+    "name": "Imipenem/cilastatin (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 10,
+    "doseMax": 20,
+    "doseDefault": 15,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q6",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "Reserve for multidrug-resistant infection.",
+    "notes": "IM dosing 5–10 mg/kg q12h also listed.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "minocycline_foal",
+    "name": "Minocycline (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 4,
+    "doseMax": 4,
+    "doseDefault": 4,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "valacyclovir_foal",
+    "name": "Valacyclovir (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 18,
+    "doseMax": 27,
+    "doseDefault": 18,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Equine herpesvirus"
+    ],
+    "cautions": "",
+    "notes": "Loading 27 mg/kg PO q8h, then maintenance 18 mg/kg PO q12h.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "ceftiofur_sodium_foal",
+    "name": "Ceftiofur sodium (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 2.2,
+    "doseMax": 5,
+    "doseDefault": 5,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IV"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "IM 2.2 mg/kg q12–24h; CRI 1.5 mg/kg/h; aerosol 2.2 mg/kg q24h.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "erythromycin_foal",
+    "name": "Erythromycin (foal, antimicrobial)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 25,
+    "doseMax": 25,
+    "doseDefault": 25,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q6-8",
+    "indications": [
+      "Rhodococcus equi pneumonia"
+    ],
+    "cautions": "Hyperthermia and diarrhoea in foals; colitis in the dam.",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "penicillin_g_foal",
+    "name": "Penicillin G (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 20000,
+    "doseMax": 20000,
+    "doseDefault": 20000,
+    "doseUnit": "IU/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IM",
+      "IV"
+    ],
+    "frequency": "q6-12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "Procaine penicillin IM q12h; potassium or sodium penicillin IV q6h.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "sulfadiazine_trimethoprim_foal",
+    "name": "Sulfadiazine-trimethoprim (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 30,
+    "doseMax": 30,
+    "doseDefault": 30,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q12",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "",
+    "notes": "Combined dose.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals)."
+  },
+  {
+    "id": "gentamicin_foal",
+    "name": "Gentamicin (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 6.6,
+    "doseMax": 13,
+    "doseDefault": 12,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "IV",
+      "IM"
+    ],
+    "frequency": "q24",
+    "indications": [
+      "Foal sepsis / infection"
+    ],
+    "cautions": "Nephrotoxic; therapeutic drug monitoring recommended in sick foals — aminoglycoside kinetics are unpredictable.",
+    "notes": "Table 20.14 lists 11–13 mg/kg (neonates) and 6.6 mg/kg (weanlings) q24h. The chapter text cites a more recent pharmacokinetic study recommending 12 mg/kg IV q36h under 2 weeks and 6.6 mg/kg IV q24h at 2 weeks or older.",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals).",
+    "foalAgeBands": [
+      {
+        "label": "Neonate (< 2 weeks)",
+        "dose": "11–13 mg/kg (text: 12 mg/kg)",
+        "route": "IV, IM",
+        "frequency": "q24h (text: q36h)"
+      },
+      {
+        "label": "2 weeks and older",
+        "dose": "6.6 mg/kg",
+        "route": "IV",
+        "frequency": "q24h"
+      },
+      {
+        "label": "Weanling",
+        "dose": "6.6 mg/kg",
+        "route": "IV, IM",
+        "frequency": "q24h"
+      }
+    ]
+  },
+  {
+    "id": "metronidazole_foal",
+    "name": "Metronidazole (foal)",
+    "categories": [
+      "Neonatal / Foal-Specific Drugs (Antimicrobials & Antifungals)"
+    ],
+    "doseMin": 10,
+    "doseMax": 15,
+    "doseDefault": 15,
+    "doseUnit": "mg/kg",
+    "concentration": 0,
+    "concentrationUnit": "",
+    "route": [
+      "PO"
+    ],
+    "frequency": "q8-12",
+    "indications": [
+      "Anaerobic infection",
+      "Clostridial enterocolitis"
+    ],
+    "cautions": "",
+    "notes": "",
+    "isCRI": false,
+    "patientType": "FOAL",
+    "sourceNote": "Reed SM, Bayly WM, Sellon DC, eds. Equine Internal Medicine. 4th ed. Elsevier; 2018. Table 20.14 (Antimicrobial Dosages for Use in Foals).",
+    "foalAgeBands": [
+      {
+        "label": "Neonate",
+        "dose": "10 mg/kg",
+        "route": "PO",
+        "frequency": "q12h"
+      },
+      {
+        "label": "10–12 days old",
+        "dose": "15 mg/kg",
+        "route": "PO",
+        "frequency": "q12h"
+      },
+      {
+        "label": "Over 2 weeks",
+        "dose": "15 mg/kg",
+        "route": "PO",
+        "frequency": "q8h"
+      }
+    ]
   }
 ];
