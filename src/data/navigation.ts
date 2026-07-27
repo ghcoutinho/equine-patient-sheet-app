@@ -65,6 +65,14 @@ export const NAV_ITEMS: NavItem[] = [
     mobilePrimary: true,
   },
   {
+    id: 'labs',
+    label: 'Laboratory',
+    shortLabel: 'Labs',
+    icon: 'science',
+    group: 'chart',
+    hint: 'Full panels with reference intervals; indices and ratios calculated',
+  },
+  {
     id: 'intelligence',
     label: 'Clinical Intelligence',
     shortLabel: 'Intel',

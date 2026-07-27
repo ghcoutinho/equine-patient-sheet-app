@@ -126,14 +126,20 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
               <PanelCard key={p.id} panel={p} onChart={() => onNavigate('assess')} />
             ))}
 
-            {/* Published admission cut-offs, applied to what is charted */}
+            {/*
+              Adult colic admission cut-offs. Deliberately hidden for foals: a
+              heart rate of 100 crosses the adult > 75 bpm threshold but is
+              unremarkable in a six-day-old, so showing this panel on a neonate
+              would flag normal physiology as high risk.
+            */}
+            {!patient.isFoal && (
             <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4">
               <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-1">
                 Admission risk cut-offs
               </h2>
               <p className="font-derived-value text-xs text-[#747686] mb-3">
-                Individual published thresholds (Bottegaro 2024, McGovern 2025), each
-                evaluated on its own — not summed into a score.
+                Individual published thresholds for the adult colic patient (Bottegaro 2024,
+                McGovern 2025), each evaluated on its own — not summed into a score.
               </p>
               {flags.length === 0 ? (
                 <p className="font-derived-value text-xs text-[#434655] bg-[#ECFDF5] border border-[#047857]/30 rounded p-2.5">
@@ -155,6 +161,7 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
                 </ul>
               )}
             </section>
+            )}
 
             {/* Biomarkers only appear once one has been entered */}
             {biomarkerRows.length > 0 && (
@@ -363,6 +370,45 @@ const PanelCard: React.FC<{ panel: ScorePanel; onChart: () => void }> = ({
 
       {hasData && (
         <>
+          {/*
+            The charted numbers themselves, not just the points they earned.
+            A score of 3 means nothing without knowing it came from a heart
+            rate of 110 — the value is what the clinician acts on.
+          */}
+          <div className="px-4 pb-3 flex flex-wrap gap-1.5">
+            {panel.criteria.map((c) => {
+              const charted = c.points !== undefined && c.evidence;
+              return (
+                <span
+                  key={c.id}
+                  title={`${c.label} · rule: ${c.rule}`}
+                  className={`inline-flex items-baseline gap-1.5 rounded px-2 py-1 border ${
+                    !charted
+                      ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#747686]'
+                      : (c.points as number) > 0
+                        ? 'bg-[#FEF2F2] border-[#B91C1C]/40'
+                        : 'bg-[#ECFDF5] border-[#047857]/30'
+                  }`}
+                >
+                  <span className="font-label-caps text-[10px] uppercase tracking-wide text-[#434655]">
+                    {c.label}
+                  </span>
+                  {charted ? (
+                    <span
+                      className={`font-clinical-value text-sm font-bold ${
+                        (c.points as number) > 0 ? 'text-[#B91C1C]' : 'text-[#047857]'
+                      }`}
+                    >
+                      {c.evidence}
+                    </span>
+                  ) : (
+                    <span className="font-derived-value text-[11px] italic">not charted</span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+
           {/* Confirmed points solid, the uncharted band hatched */}
           <div className="px-4">
             <div

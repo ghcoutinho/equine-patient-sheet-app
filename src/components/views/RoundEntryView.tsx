@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useEnterAdvance } from '../../utils/formNavigation';
 import {
   Patient,
   FlowsheetColumn,
@@ -130,6 +131,11 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [incisionStatus, setIncisionStatus] = useState<string | undefined>();
 
   const [open, setOpen] = useState<Set<SectionId>>(new Set<SectionId>(['vitals']));
+
+  // Enter walks down the numeric fields so a whole round can be charted
+  // without leaving the keyboard.
+  const formRef = useRef<HTMLDivElement>(null);
+  const advanceOnEnter = useEnterAdvance(formRef);
   const toggle = (id: SectionId) =>
     setOpen((prev) => {
       const next = new Set(prev);
@@ -364,7 +370,11 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   };
 
   return (
-    <div className="flex-1 max-w-2xl mx-auto w-full p-4 md:p-6 space-y-4 pb-32">
+    <div
+      ref={formRef}
+      onKeyDown={advanceOnEnter}
+      className="flex-1 max-w-2xl mx-auto w-full p-4 md:p-6 space-y-4 pb-32"
+    >
       {/* Header */}
       <div className="bg-white p-4 rounded-lg border border-[#E2E8F0] shadow-sm flex items-center justify-between">
         <div>

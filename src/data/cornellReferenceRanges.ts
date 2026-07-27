@@ -47,6 +47,7 @@ export const CORNELL_EQUINE_CHEMISTRY: LabParameterRange[] = [
   { id: 'lab_fructosamine', name: 'Fructosamine', sectionGroup: 'Chemistry', units: 'umol/L', referenceMin: 284, referenceMax: 387 },
   { id: 'lab_ionized_calcium', name: 'Ionized Calcium (ABL-800 Flex)', sectionGroup: 'Chemistry', units: 'mmol/L', referenceMin: 1.40, referenceMax: 1.72, criticalMin: 1.0, criticalMax: 2.0 },
   { id: 'lab_saa', name: 'SAA', sectionGroup: 'Chemistry', units: 'ug/mL', referenceMin: 0, referenceMax: 8, criticalMax: 100 },
+  { id: 'lab_lactate', name: 'Lactate', sectionGroup: 'Chemistry', units: 'mmol/L', referenceMin: 0.5, referenceMax: 1.5, criticalMax: 5.0 },
 ];
 
 export const CORNELL_EQUINE_HEMATOLOGY: LabParameterRange[] = [
@@ -64,6 +65,10 @@ export const CORNELL_EQUINE_HEMATOLOGY: LabParameterRange[] = [
   { id: 'lab_monocytes', name: 'Monocytes', sectionGroup: 'Hematology', units: 'K/uL', referenceMin: 0, referenceMax: 0.8 },
   { id: 'lab_eosinophils', name: 'Eosinophils', sectionGroup: 'Hematology', units: 'K/uL', referenceMin: 0, referenceMax: 0.6 },
   { id: 'lab_fibrinogen', name: 'Fibrinogen', sectionGroup: 'Hematology', units: 'mg/dL', referenceMin: 100, referenceMax: 400, criticalMax: 800 },
+  { id: 'lab_basophils', name: 'Basophils', sectionGroup: 'Hematology', units: 'K/uL', referenceMin: 0, referenceMax: 0.3 },
+  // RDW is deliberately absent: the analyser reports it, but there is no
+  // established equine reference interval to flag it against, and the app says
+  // so rather than borrowing a canine or human one.
 ];
 
 export const CORNELL_EQUINE_IMMUNOLOGY: LabParameterRange[] = [
@@ -92,5 +97,8 @@ export const ALL_CORNELL_LABS = [
   ...QUICK_LABS,
   ...CORNELL_EQUINE_HEMATOLOGY,
   ...CORNELL_EQUINE_CHEMISTRY,
-  ...CORNELL_EQUINE_IMMUNOLOGY
+  ...CORNELL_EQUINE_IMMUNOLOGY,
+  // Blood gas was defined but left out of this list, so those five parameters
+  // had reference intervals that nothing could look up.
+  ...CORNELL_EQUINE_BLOOD_GAS,
 ];

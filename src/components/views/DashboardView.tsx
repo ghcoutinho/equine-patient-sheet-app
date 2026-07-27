@@ -1,5 +1,6 @@
 import React from 'react';
 import { Patient, ViewTab } from '../../types';
+import { Sparkline } from '../ui/Sparkline';
 
 interface DashboardViewProps {
   patients: Patient[];
@@ -105,22 +106,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <span className={`font-clinical-value text-base font-bold flex items-center gap-1 ${
                       isCritical ? 'text-[#B91C1C]' : isWatch ? 'text-[#C2410C]' : 'text-[#047857]'
                     }`}>
-                      {latestObs?.vitals?.heartRate || latestObs?.gi?.refluxVolumeL || '--'}
+                      {Number.isFinite(latestObs?.vitals?.heartRate)
+                        ? latestObs?.vitals?.heartRate
+                        : Number.isFinite(latestObs?.gi?.refluxVolumeL)
+                          ? latestObs?.gi?.refluxVolumeL
+                          : '—'}
                       <span className="font-derived-value text-xs text-[#434655]">
-                        {latestObs?.vitals?.heartRate ? 'bpm' : 'L'}
+                        {Number.isFinite(latestObs?.vitals?.heartRate) ? 'bpm' : 'L'}
                       </span>
-                      <span>↗</span>
                     </span>
                   </div>
 
-                  {/* Sparkline Visual Bars */}
-                  <div className="h-8 flex items-end gap-1 w-full mt-2 bg-[#f8f9ff] p-1 rounded border border-[#E2E8F0]">
-                    <div className="w-1/4 bg-[#ECFDF5] border-t-2 border-[#047857] h-[40%] rounded-t-sm" />
-                    <div className="w-1/4 bg-[#FFF7ED] border-t-2 border-[#C2410C] h-[65%] rounded-t-sm" />
-                    <div className={`w-1/2 rounded-t-sm h-[90%] ${
-                      isCritical ? 'bg-[#B91C1C] border-t-2 border-[#B91C1C] animate-pulse-critical' : 'bg-[#C2410C] border-t-2 border-[#C2410C]'
-                    }`} />
-                  </div>
+                  {/* Trend from the charted rounds, not a fixed decoration */}
+                  <Sparkline
+                    className="mt-2"
+                    height={34}
+                    label={`${patient.name} heart rate`}
+                    referenceMin={28}
+                    referenceMax={44}
+                    color={isCritical ? '#B91C1C' : '#1D4ED8'}
+                    points={patient.flowsheetHistory.map((c) => ({
+                      value: c.vitals?.heartRate,
+                      label: c.time,
+                    }))}
+                  />
                 </div>
 
                 {/* Sub-Metrics Grid */}
@@ -130,7 +139,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       {patient.isFoal ? 'Sepsis Risk' : 'Motility'}
                     </span>
                     <span className="font-clinical-value text-sm text-[#0b1c30]">
-                      {latestObs?.gi?.motility || (patient.isFoal ? 'High Risk' : 'Normal')}
+                      {/* An unrecorded motility is not "Normal", and an
+                          unrecorded foal is not "High Risk". */}
+                      {latestObs?.gi?.motility || 'Not charted'}
                     </span>
                   </div>
 

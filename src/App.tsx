@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ViewTab, Patient } from './types';
+import type { ViewTab, Patient, Treatment } from './types';
 import { INITIAL_PATIENTS } from './data/initialData';
 import { usePersistentPatients, useClinician } from './utils/persistence';
 
@@ -18,6 +18,7 @@ import { DoseCalculatorView } from './components/views/DoseCalculatorView';
 import { ReferenceRangesView } from './components/views/ReferenceRangesView';
 import { PatientManagementView } from './components/views/PatientManagementView';
 import { TreatmentsView } from './components/views/TreatmentsView';
+import { LabPanelView } from './components/views/LabPanelView';
 
 export function App() {
   const [patients, setPatients, saveFailed] = usePersistentPatients(INITIAL_PATIENTS);
@@ -53,28 +54,19 @@ export function App() {
     }
   };
 
-  const handleApplyMedicationToFlowsheet = (_medName: string, doseText: string) => {
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-
-    const latest = activePatient.flowsheetHistory[activePatient.flowsheetHistory.length - 1];
-
-    const updatedPatient: Patient = {
+  /**
+   * Adding a dose from the calculator puts it on the treatment sheet, where a
+   * drug belongs. It used to append a whole flowsheet column and, when the
+   * patient had no previous round, invent the vitals to fill it — heart rate
+   * 88, temperature 38.5, lactate 2.1 — so calculating a dose fabricated an
+   * observation nobody made.
+   */
+  const handleAddTreatment = (treatment: Treatment) => {
+    handleUpdatePatient({
       ...activePatient,
-      lastObsTime: 'Just now',
-      flowsheetHistory: [
-        ...activePatient.flowsheetHistory,
-        {
-          time: timeStr,
-          vitals: latest?.vitals || { heartRate: 88, temperatureC: 38.5 },
-          gi: latest?.gi || { motility: 'Decreased' },
-          labs: latest?.labs || { lactate: 2.1 },
-          note: `Medication Administered: ${doseText}`
-        }
-      ]
-    };
-
-    handleUpdatePatient(updatedPatient);
+      treatments: [...(activePatient.treatments ?? []), treatment],
+    });
+    setCurrentTab('meds');
   };
 
   return (
@@ -142,6 +134,14 @@ export function App() {
             />
           )}
 
+          {currentTab === 'labs' && (
+            <LabPanelView
+              patient={activePatient}
+              clinician={clinician}
+              onUpdatePatient={handleUpdatePatient}
+            />
+          )}
+
           {currentTab === 'intelligence' && (
             <LiveIntelligenceView
               patient={activePatient}
@@ -185,7 +185,8 @@ export function App() {
           {currentTab === 'calculator' && (
             <DoseCalculatorView
               patient={activePatient}
-              onApplyMedicationToFlowsheet={handleApplyMedicationToFlowsheet}
+              clinician={clinician}
+              onAddTreatment={handleAddTreatment}
             />
           )}
         </main>

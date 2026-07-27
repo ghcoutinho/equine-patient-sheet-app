@@ -9,6 +9,67 @@ import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { BODY_SYSTEM_META } from '../../data/bodySystems';
 import { computeDue, DUE_STYLES, TASK_KIND_ICON, markDone } from '../../utils/schedule';
+import { Sparkline } from '../ui/Sparkline';
+
+/**
+ * Series plotted in the trend rail. Reference bounds are the adult intervals
+ * used elsewhere in the app, so the shaded band on the chart is the same band
+ * the flowsheet cells are coloured against.
+ */
+const TREND_SERIES: {
+  id: string;
+  label: string;
+  units: string;
+  color: string;
+  referenceMin?: number;
+  referenceMax?: number;
+  pick: (c: FlowsheetColumn) => number | undefined;
+}[] = [
+  {
+    id: 'hr',
+    label: 'Heart rate',
+    units: 'bpm',
+    color: '#1D4ED8',
+    referenceMin: 28,
+    referenceMax: 44,
+    pick: (c) => c.vitals?.heartRate,
+  },
+  {
+    id: 'rr',
+    label: 'Respiratory rate',
+    units: 'brpm',
+    color: '#6D28D9',
+    referenceMin: 8,
+    referenceMax: 16,
+    pick: (c) => c.vitals?.respiratoryRate,
+  },
+  {
+    id: 'lactate',
+    label: 'Lactate',
+    units: 'mmol/L',
+    color: '#0E7490',
+    referenceMin: 0.5,
+    referenceMax: 1.5,
+    pick: (c) => (typeof c.labs?.lactate === 'number' ? c.labs.lactate : undefined),
+  },
+  {
+    id: 'pcv',
+    label: 'Haematocrit',
+    units: '%',
+    color: '#B45309',
+    referenceMin: 32,
+    referenceMax: 48,
+    pick: (c) => (typeof c.labs?.pcv === 'number' ? c.labs.pcv : undefined),
+  },
+  {
+    id: 'reflux',
+    label: 'Net gastric reflux',
+    units: 'L',
+    color: '#C2410C',
+    referenceMax: 2,
+    pick: (c) => c.gi?.refluxVolumeL,
+  },
+];
 
 const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
   normal: 'text-[#047857]',
@@ -115,7 +176,9 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
       },
       gi: {
         refluxVolumeL: newReflux ? parseFloat(newReflux) : undefined,
-        motility: newReflux && parseFloat(newReflux) > 4 ? 'Absent' : 'Decreased',
+        // Motility is auscultated, not inferred from reflux volume. This used
+        // to chart "Absent" or "Decreased" purely from the litres in the
+        // bucket, which put a finding in the record that nobody listened for.
       },
       labs: {
         lactate: newLactate ? parseFloat(newLactate) : undefined,
@@ -421,8 +484,16 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
             </div>
           )}
 
-          <div className="bg-white rounded border border-[#E2E8F0] shadow-sm overflow-hidden relative">
-            <table className="w-full text-left border-collapse min-w-[700px]">
+          {/*
+            The card used to clip its own content with overflow-hidden while the
+            table was pinned to w-full, so once a patient had more than a few
+            rounds the later columns were squeezed to nothing and could not be
+            reached. The card now scrolls horizontally and the table takes its
+            natural width, so each column keeps its min-width and the parameter
+            column stays pinned on the left as you scroll along.
+          */}
+          <div className="bg-white rounded border border-[#E2E8F0] shadow-sm overflow-x-auto overflow-y-visible relative">
+            <table className="text-left border-collapse min-w-full w-max">
               {/* Header Row */}
               <thead className="sticky top-0 z-20 bg-[#f8f9ff] shadow-sm">
                 <tr>
@@ -884,51 +955,51 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
             )}
           </div>
 
-          {/* Sparkline Trend Overview */}
+          {/* Trends, drawn from the charted columns */}
           <div className="space-y-4">
-            <div>
-              <div className="flex justify-between items-end mb-1">
-                <span className="font-label-caps text-xs text-[#1D4ED8]">HR Trend</span>
-                <span className="font-clinical-value text-xs bg-[#B91C1C] text-white px-1 rounded">
-                  {patient.flowsheetHistory[patient.flowsheetHistory.length - 1]?.vitals?.heartRate || 110}
-                </span>
-              </div>
-              <div className="h-12 bg-[#eff4ff] rounded border border-[#E2E8F0] flex items-end p-1 gap-1">
-                <div className="w-1/5 bg-[#047857] h-[40%] rounded-t-sm" />
-                <div className="w-1/5 bg-[#047857] h-[45%] rounded-t-sm" />
-                <div className="w-1/5 bg-[#C2410C] h-[60%] rounded-t-sm" />
-                <div className="w-1/5 bg-[#C2410C] h-[75%] rounded-t-sm" />
-                <div className="w-1/5 bg-[#B91C1C] h-[100%] rounded-t-sm animate-pulse-critical" />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-end mb-1">
-                <span className="font-label-caps text-xs text-[#0E7490]">Lactate Trend</span>
-                <span className="font-clinical-value text-xs bg-[#B91C1C] text-white px-1 rounded">
-                  {patient.flowsheetHistory[patient.flowsheetHistory.length - 1]?.labs?.lactate || 6.2}
-                </span>
-              </div>
-              <div className="h-12 bg-[#eff4ff] rounded border border-[#E2E8F0] flex items-end p-1 gap-1">
-                <div className="w-1/4 bg-[#047857] h-[25%] rounded-t-sm" />
-                <div className="w-1/4 bg-[#047857] h-[35%] rounded-t-sm" />
-                <div className="w-1/4 bg-[#475569] h-[35%] rounded-t-sm opacity-30 border border-dashed" />
-                <div className="w-1/4 bg-[#B91C1C] h-[95%] rounded-t-sm animate-pulse-critical" />
-              </div>
-            </div>
-          </div>
-
-          {/* Current Score Footer */}
-          <div className="mt-auto pt-4 border-t border-[#E2E8F0]">
-            <div className="bg-[#f8f9ff] border border-[#E2E8F0] rounded p-3 text-center">
-              <span className="font-label-caps text-xs text-[#434655] block mb-1">
-                Current CAS Score
-              </span>
-              <span className="font-display text-2xl text-[#334155]">
-                {patient.casScoreConfirmed}
-                <span className="text-sm text-[#747686]">/20</span>
-              </span>
-            </div>
+            {TREND_SERIES.map((s) => {
+              const points = patient.flowsheetHistory.map((col) => ({
+                value: s.pick(col),
+                label: col.time,
+              }));
+              const latest = [...points].reverse().find((p) => Number.isFinite(p.value));
+              const out =
+                latest &&
+                ((s.referenceMax !== undefined && (latest.value as number) > s.referenceMax) ||
+                  (s.referenceMin !== undefined && (latest.value as number) < s.referenceMin));
+              return (
+                <div key={s.id}>
+                  <div className="flex justify-between items-end mb-1">
+                    <span className="font-label-caps text-xs" style={{ color: s.color }}>
+                      {s.label}
+                    </span>
+                    {latest ? (
+                      <span
+                        className={`font-clinical-value text-xs px-1.5 py-0.5 rounded ${
+                          out
+                            ? 'bg-[#B91C1C] text-white'
+                            : 'bg-[#ECFDF5] text-[#047857] border border-[#047857]/30'
+                        }`}
+                      >
+                        {latest.value} {s.units}
+                      </span>
+                    ) : (
+                      <span className="font-derived-value text-[10px] text-[#747686]">
+                        no value
+                      </span>
+                    )}
+                  </div>
+                  <Sparkline
+                    points={points}
+                    referenceMin={s.referenceMin}
+                    referenceMax={s.referenceMax}
+                    color={s.color}
+                    height={44}
+                    label={s.label}
+                  />
+                </div>
+              );
+            })}
           </div>
         </aside>
       </div>

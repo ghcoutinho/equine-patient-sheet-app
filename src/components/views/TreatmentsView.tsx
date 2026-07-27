@@ -15,6 +15,11 @@ import {
   dayLabel,
   formatDuration,
   newId,
+  intervalFromFrequency,
+  normaliseRoute,
+  ROUTES,
+  upcomingDoses,
+  runningLines,
   type TreatmentStatus,
 } from '../../utils/treatments';
 
@@ -29,21 +34,6 @@ const KIND_ICON: Record<TreatmentKind, string> = {
   FLUID: 'water_drop',
   CRI: 'monitor_heart',
 };
-
-/** Parse "q6h", "q12h", "q8-12h", "SID", "BID", "TID", "QID" into hours. */
-function intervalFromFrequency(freq: string | undefined): number | undefined {
-  const f = (freq || '').trim().toLowerCase();
-  if (!f) return undefined;
-  if (/\bsid\b|\bq24\b|once daily/.test(f)) return 24;
-  if (/\bbid\b/.test(f)) return 12;
-  if (/\btid\b/.test(f)) return 8;
-  if (/\bqid\b/.test(f)) return 6;
-  // "q6h", "q8-12h" — take the shorter end, which is the more frequent order.
-  const m = f.match(/q\s*(\d+)(?:\s*[–-]\s*(\d+))?\s*h/);
-  if (m) return Number(m[1]);
-  if (/\bcri\b|continuous|infusion/.test(f)) return undefined;
-  return undefined;
-}
 
 const isoLocal = (d: Date): string => {
   const pad = (n: number) => n.toString().padStart(2, '0');
@@ -67,7 +57,8 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   onUpdatePatient,
 }) => {
   const [now, setNow] = useState<Date>(() => new Date());
-  const [mode, setMode] = useState<'sheet' | 'timeline'>('sheet');
+  const [mode, setMode] = useState<'sheet' | 'upcoming' | 'timeline'>('sheet');
+  const [horizonHours, setHorizonHours] = useState(24);
   const [showStopped, setShowStopped] = useState(false);
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -91,6 +82,11 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
     [patient.treatments, now],
   );
   const timeline = useMemo(() => treatmentTimeline(patient.treatments), [patient.treatments]);
+  const upcoming = useMemo(
+    () => upcomingDoses(patient.treatments, now, horizonHours),
+    [patient.treatments, now, horizonHours],
+  );
+  const running = useMemo(() => runningLines(patient.treatments, now), [patient.treatments, now]);
 
   const open = statuses.filter((s) => s.state !== 'STOPPED');
   const stopped = statuses.filter((s) => s.state === 'STOPPED');
@@ -117,7 +113,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
     setDose(String(d.doseDefault));
     setDoseUnit(d.doseUnit);
     setConcentration(d.concentration > 0 ? String(d.concentration) : '');
-    setRoute(d.route[0] || 'IV');
+    setRoute(normaliseRoute(d.route[0]));
     const iv = intervalFromFrequency(d.frequency);
     if (d.isCRI) {
       setKind('CRI');
@@ -259,7 +255,13 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
 
           <div className="flex items-center gap-2">
             <div className="flex rounded border border-[#E2E8F0] overflow-hidden">
-              {(['sheet', 'timeline'] as const).map((m) => (
+              {(
+                [
+                  ['sheet', 'Sheet'],
+                  ['upcoming', 'Coming up'],
+                  ['timeline', 'Given'],
+                ] as const
+              ).map(([m, label]) => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
@@ -267,7 +269,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                     mode === m ? 'bg-[#1d4ed8] text-white' : 'bg-white text-[#434655] hover:bg-[#eff4ff]'
                   }`}
                 >
-                  {m === 'sheet' ? 'Sheet' : 'By time'}
+                  {label}
                 </button>
               ))}
             </div>
@@ -389,11 +391,17 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                 <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
                   Route
                 </label>
-                <input
+                <select
                   value={route}
                   onChange={(e) => setRoute(e.target.value)}
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                />
+                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+                >
+                  {ROUTES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {kind === 'MEDICATION' ? (
@@ -542,6 +550,144 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
               </button>
             )}
           </>
+        ) : mode === 'upcoming' ? (
+          /* Forward schedule: what is due, and what is still running */
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-derived-value text-xs text-[#434655]">
+                Projected from each order's interval — {upcoming.length} dose
+                {upcoming.length === 1 ? '' : 's'} in the next {horizonHours} hours.
+              </p>
+              <div className="flex rounded border border-[#E2E8F0] overflow-hidden">
+                {[8, 24, 48].map((h) => (
+                  <button
+                    key={h}
+                    onClick={() => setHorizonHours(h)}
+                    className={`px-2.5 py-1 text-xs font-label-caps ${
+                      horizonHours === h
+                        ? 'bg-[#1d4ed8] text-white'
+                        : 'bg-white text-[#434655] hover:bg-[#eff4ff]'
+                    }`}
+                  >
+                    {h} h
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Continuous lines: duration rather than doses */}
+            {running.length > 0 && (
+              <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
+                <h2 className="px-3 py-2 bg-[#f8f9ff] border-b border-[#E2E8F0] font-label-caps text-[10px] tracking-widest text-[#747686] uppercase">
+                  Running now — fluids and infusions
+                </h2>
+                <ul className="divide-y divide-[#E2E8F0]">
+                  {running.map(({ treatment: t, runningForMs }) => (
+                    <li key={t.id} className="p-3">
+                      <div className="flex items-center justify-between gap-3 mb-1.5">
+                        <span className="font-headline text-sm font-bold text-[#0b1c30]">
+                          {t.drug}
+                        </span>
+                        <span className="font-derived-value text-xs text-[#047857] bg-[#ECFDF5] border border-[#047857]/30 px-2 py-0.5 rounded whitespace-nowrap">
+                          up {formatDuration(runningForMs)}
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full bg-[#ECFDF5] border border-[#047857]/30 overflow-hidden">
+                        <div
+                          className="h-full bg-[#047857]"
+                          style={{
+                            // Proportion of the last 24 h this line has been up.
+                            width: `${Math.min(100, (runningForMs / (24 * 3600_000)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between font-derived-value text-[10px] text-[#747686] mt-0.5">
+                        <span>
+                          started {clockTime(t.startedAt)} {dayLabel(t.startedAt, now)}
+                          {t.rateText ? ` · ${t.rateText}` : ''}
+                          {t.route ? ` · ${t.route}` : ''}
+                        </span>
+                        <span>running until stopped</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Scheduled doses, grouped by hour */}
+            {upcoming.length === 0 ? (
+              <div className="bg-white border border-dashed border-[#c4c5d7] rounded-lg p-8 text-center">
+                <p className="font-body-md text-sm text-[#434655]">
+                  No intermittent doses scheduled in the next {horizonHours} hours.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
+                <ul className="divide-y divide-[#E2E8F0]">
+                  {upcoming.map((u) => (
+                    <li
+                      key={u.id}
+                      className={`flex items-center gap-3 p-2.5 ${
+                        u.overdue ? 'bg-[#FEF2F2]' : u.ordinal === 1 ? 'bg-[#f8f9ff]' : ''
+                      }`}
+                    >
+                      <div className="w-16 flex-shrink-0 text-right">
+                        <div
+                          className={`font-derived-value text-sm font-bold ${
+                            u.overdue ? 'text-[#B91C1C]' : 'text-[#0b1c30]'
+                          }`}
+                        >
+                          {clockTime(u.at)}
+                        </div>
+                        <div className="font-label-caps text-[10px] text-[#747686]">
+                          {dayLabel(u.at, now)}
+                        </div>
+                      </div>
+                      <span
+                        className={`w-1 self-stretch rounded ${
+                          u.overdue ? 'bg-[#B91C1C]' : u.ordinal === 1 ? 'bg-[#C2410C]' : 'bg-[#c4c5d7]'
+                        }`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-body-md text-sm text-[#0b1c30] truncate">
+                          <span className="font-semibold">{u.treatment.drug}</span>
+                          {u.ordinal === 1 && (
+                            <span
+                              className={`ml-2 font-label-caps text-[10px] px-1.5 py-0.5 rounded ${
+                                u.overdue
+                                  ? 'bg-[#B91C1C] text-white'
+                                  : 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30'
+                              }`}
+                            >
+                              {u.overdue ? 'Overdue' : 'Next'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-derived-value text-xs text-[#434655] truncate">
+                          {[
+                            u.treatment.amountText || u.treatment.doseText,
+                            u.treatment.route,
+                            `q${u.treatment.intervalHours}h`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </div>
+                      </div>
+                      {u.ordinal === 1 && (
+                        <button
+                          onClick={() => recordGiven(u.treatment)}
+                          className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex-shrink-0"
+                        >
+                          Given
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         ) : (
           /* Chronological */
           <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">

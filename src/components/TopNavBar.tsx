@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ViewTab, Patient } from '../types';
 import { navLabel } from '../data/navigation';
+import { PatientMarkGlyph } from './ui/PatientMark';
+import { sexOption } from '../data/patientIdentity';
 
 interface TopNavBarProps {
   currentTab: ViewTab;
@@ -101,13 +103,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         {/* Active patient */}
         <div className="flex items-center gap-1.5 bg-[#e5eeff] px-2 py-1 rounded border border-[#E2E8F0] min-w-0">
-          <span
-            className="material-symbols-outlined text-sm text-[#0037b0] flex-shrink-0"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-            aria-hidden
-          >
-            pets
-          </span>
+          <PatientMarkGlyph patient={activePatient} className="w-4 h-4 text-[#0037b0] flex-shrink-0" />
           <select
             aria-label="Active patient"
             value={activePatient.id}
@@ -116,7 +112,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
           >
             {patients.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name} ({p.caseNumber})
+                {sexOption(p.sex).symbol} {p.name} ({p.caseNumber})
                 {p.isTest ? ' — test' : ''}
               </option>
             ))}

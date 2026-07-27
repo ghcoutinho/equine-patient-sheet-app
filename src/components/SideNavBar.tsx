@@ -2,6 +2,8 @@ import React from 'react';
 import type { ViewTab, Patient } from '../types';
 import { NAV_ORDER, NAV_GROUP_LABEL, itemsInGroup } from '../data/navigation';
 import { nextDue, DUE_STYLES } from '../utils/schedule';
+import { PatientMarkIcon } from './ui/PatientMark';
+import { patientAge } from '../data/patientIdentity';
 
 interface SideNavBarProps {
   currentTab: ViewTab;
@@ -27,14 +29,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
     <aside className="hidden lg:flex flex-col h-full fixed left-0 top-0 pt-[44px] w-64 bg-[#f8f9ff] border-r border-[#E2E8F0] z-40 select-none">
       {/* Active patient context */}
       <div className="p-4 border-b border-[#E2E8F0] flex flex-col items-center text-center bg-white">
-        <div className="w-12 h-12 rounded-full bg-[#e5eeff] mb-2 border-2 border-[#E2E8F0] flex items-center justify-center text-[#0037b0] relative">
-          <span className="material-symbols-outlined text-2xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            pets
-          </span>
-          {activePatient.status === 'CRITICAL' && (
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#B91C1C] border-2 border-white rounded-full animate-pulse-critical" />
-          )}
-        </div>
+        <PatientMarkIcon patient={activePatient} size={48} showStatus className="mb-2" />
 
         <h2 className="font-headline text-base font-bold text-[#0037b0] leading-tight">
           {activePatient.name}
@@ -44,6 +39,10 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
             </span>
           )}
         </h2>
+
+        <p className="font-body-md text-[11px] text-[#747686] mt-0.5">
+          {patientAge(activePatient, new Date()).label} · {activePatient.weightKg} kg
+        </p>
 
         <p className="font-body-md text-xs text-[#434655] mt-0.5 flex items-center justify-center gap-1.5">
           <span>Case {activePatient.caseNumber}</span>

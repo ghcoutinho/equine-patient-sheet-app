@@ -37,6 +37,77 @@ export interface TreatmentStatus {
   lastGivenAt?: Date;
 }
 
+/**
+ * Routes of administration, offered as a list rather than typed free-hand so
+ * the sheet stays searchable and "IV", "iv" and "I.V." do not become three
+ * different routes.
+ */
+export const ROUTES = [
+  'IV',
+  'IV bolus',
+  'IV CRI',
+  'IM',
+  'SC',
+  'PO',
+  'PR',
+  'Intraosseous',
+  'Intra-articular',
+  'Intrauterine',
+  'Intranasal',
+  'Nebulised',
+  'Topical',
+  'Ophthalmic',
+  'Epidural',
+  'Regional limb perfusion',
+  'Via nasogastric tube',
+] as const;
+
+export type Route = (typeof ROUTES)[number];
+
+/** Map a formulary route abbreviation onto the canonical list. */
+export function normaliseRoute(raw: string | undefined): string {
+  const r = (raw || '').trim();
+  if (!r) return 'IV';
+  const exact = ROUTES.find((o) => o.toLowerCase() === r.toLowerCase());
+  if (exact) return exact;
+  const compact = r.replace(/[.\s]/g, '').toUpperCase();
+  const alias: Record<string, string> = {
+    IV: 'IV',
+    IM: 'IM',
+    SC: 'SC',
+    SQ: 'SC',
+    PO: 'PO',
+    PR: 'PR',
+    IO: 'Intraosseous',
+    IA: 'Intra-articular',
+    NG: 'Via nasogastric tube',
+    CRI: 'IV CRI',
+    NEB: 'Nebulised',
+  };
+  return alias[compact] ?? r;
+}
+
+/**
+ * Turn a formulary frequency into hours between doses.
+ *
+ * A range such as "q8-12h" resolves to the shorter interval, which is the more
+ * frequent order — under-dosing an antimicrobial is the worse error. Anything
+ * describing a continuous infusion returns undefined, because a CRI has a rate,
+ * not an interval.
+ */
+export function intervalFromFrequency(freq: string | undefined): number | undefined {
+  const f = (freq || '').trim().toLowerCase();
+  if (!f) return undefined;
+  if (/\bcri\b|continuous|infusion/.test(f)) return undefined;
+  if (/\bsid\b|\bq24\b|once daily/.test(f)) return 24;
+  if (/\bbid\b/.test(f)) return 12;
+  if (/\btid\b/.test(f)) return 8;
+  if (/\bqid\b/.test(f)) return 6;
+  const m = f.match(/q\s*(\d+)(?:\s*[–-]\s*(\d+))?\s*h/);
+  if (m) return Number(m[1]);
+  return undefined;
+}
+
 export const TREATMENT_KIND_LABEL: Record<TreatmentKind, string> = {
   MEDICATION: 'Medication',
   FLUID: 'Fluid',
@@ -89,7 +160,10 @@ export function dayLabel(iso: string | Date, now: Date): string {
   if (days === 0) return 'Today';
   if (days === 1) return 'Yesterday';
   if (days > 1) return `${days} d ago`;
-  return d.toLocaleDateString();
+  // Future dates: the forward schedule projects doses into tomorrow and beyond,
+  // and "Tomorrow" reads better on a ward board than a locale date string.
+  if (days === -1) return 'Tomorrow';
+  return `in ${Math.abs(days)} d`;
 }
 
 /** The most recent administration, or undefined if none has been recorded. */
@@ -233,6 +307,72 @@ export function treatmentTimeline(treatments: Treatment[] | undefined): Treatmen
   return events
     .filter((e) => !Number.isNaN(e.at.getTime()))
     .sort((a, b) => b.at.getTime() - a.at.getTime());
+}
+
+/**
+ * The forward schedule: every dose still to come, and every line still running.
+ *
+ * The past timeline answers "what happened"; this answers "what is about to".
+ * Doses are projected forward from the next due time at the order's interval,
+ * so the ward can see the shape of the next shift rather than one dose at a
+ * time. Continuous lines have no doses to project, so they appear once as a
+ * running band with the time they were started and how long they have been up.
+ */
+export interface UpcomingDose {
+  id: string;
+  treatment: Treatment;
+  at: Date;
+  /** 1 for the next dose, 2 for the one after, and so on. */
+  ordinal: number;
+  /** True when this dose is already late. */
+  overdue: boolean;
+}
+
+export function upcomingDoses(
+  treatments: Treatment[] | undefined,
+  now: Date,
+  horizonHours = 24,
+): UpcomingDose[] {
+  const horizon = now.getTime() + horizonHours * HOUR;
+  const out: UpcomingDose[] = [];
+
+  for (const t of treatments ?? []) {
+    if (t.stoppedAt || !t.intervalHours) continue;
+    const status = treatmentStatus(t, now);
+    if (!status.nextDueAt) continue;
+
+    let at = status.nextDueAt.getTime();
+    let ordinal = 1;
+    // Cap the projection so a q1h order cannot flood the view.
+    while (at <= horizon && ordinal <= 24) {
+      out.push({
+        id: `${t.id}-${ordinal}`,
+        treatment: t,
+        at: new Date(at),
+        ordinal,
+        overdue: at < now.getTime(),
+      });
+      at += t.intervalHours * HOUR;
+      ordinal += 1;
+    }
+  }
+
+  return out.sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+/** Continuous lines still up, with how long each has been running. */
+export function runningLines(
+  treatments: Treatment[] | undefined,
+  now: Date,
+): { treatment: Treatment; runningForMs: number }[] {
+  return (treatments ?? [])
+    .filter((t) => !t.stoppedAt && !t.intervalHours)
+    .map((t) => ({
+      treatment: t,
+      runningForMs: now.getTime() - new Date(t.startedAt).getTime(),
+    }))
+    .filter((r) => Number.isFinite(r.runningForMs))
+    .sort((a, b) => b.runningForMs - a.runningForMs);
 }
 
 /** Continuous lines still up, for the flowsheet banner and the alert rail. */

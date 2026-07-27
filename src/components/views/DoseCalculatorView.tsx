@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Patient, DrugFormularyItem } from '../../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Patient, DrugFormularyItem, Treatment } from '../../types';
 import { EXPANDED_FORMULARY } from '../../data/expandedFormulary';
 import {
   computeDose,
@@ -8,10 +8,12 @@ import {
   defaultConcentrationUnit,
   concentrationUnitOptions,
 } from '../../utils/doseCalculation';
+import { ROUTES, normaliseRoute, intervalFromFrequency } from '../../utils/treatments';
 
 interface DoseCalculatorViewProps {
   patient: Patient;
-  onApplyMedicationToFlowsheet?: (medName: string, doseText: string) => void;
+  clinician?: string;
+  onAddTreatment?: (treatment: Treatment) => void;
 }
 
 /** Stable React key — the formulary contains 9 duplicated ids. */
@@ -19,7 +21,8 @@ const rowKey = (drug: DrugFormularyItem, index: number) => `${drug.id}-${index}`
 
 export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
   patient,
-  onApplyMedicationToFlowsheet,
+  clinician = '',
+  onAddTreatment,
 }) => {
   const [weightKg, setWeightKg] = useState<number>(patient.weightKg || 500);
   const [search, setSearch] = useState('');
@@ -107,13 +110,39 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
   const isRate = spec?.kind === 'per-kg-rate';
   const accent = isRate ? '#8B5CF6' : '#0037b0';
 
-  const handleApply = () => {
+  // Route and interval for the order this dose will become. Seeded from the
+  // formulary entry so the common case is one click.
+  const [route, setRoute] = useState<string>('IV');
+  const [intervalHours, setIntervalHours] = useState<string>('');
+  useEffect(() => {
+    if (!selected) return;
+    setRoute(normaliseRoute(selected.route?.[0]));
+    const iv = intervalFromFrequency(selected.frequency);
+    setIntervalHours(selected.isCRI || !iv ? '' : String(iv));
+  }, [selected]);
+
+  const handleAddToSheet = () => {
     if (!selected || !result) return;
-    const text = `${selected.name} ${dose} ${selected.doseUnit} — ${result.summary}${
-      selected.route?.length ? ` ${selected.route[0]}` : ''
-    }${selected.frequency ? ` ${selected.frequency}` : ''}`;
-    onApplyMedicationToFlowsheet?.(selected.name, text);
-    setAppliedNotice(`Recorded: ${text}`);
+    const iv = Number(intervalHours);
+    const treatment: Treatment = {
+      id: `tx_${Math.random().toString(36).slice(2, 9)}`,
+      kind: isRate || selected.isCRI ? 'CRI' : 'MEDICATION',
+      drug: selected.name,
+      formularyId: selected.id,
+      doseText: `${dose} ${selected.doseUnit}`,
+      amountText:
+        result.volume !== undefined ? `${result.volume} ${result.volumeUnit}` : undefined,
+      route,
+      intervalHours:
+        !isRate && !selected.isCRI && Number.isFinite(iv) && iv > 0 ? iv : undefined,
+      rateText: isRate || selected.isCRI ? `${dose} ${selected.doseUnit}` : undefined,
+      startedAt: new Date().toISOString(),
+      prescribedBy: clinician || 'Unattributed',
+      administrations: [],
+      note: `Calculated at ${weightKg} kg`,
+    };
+    onAddTreatment?.(treatment);
+    setAppliedNotice(`${selected.name} added to the treatment sheet`);
     setTimeout(() => setAppliedNotice(null), 4000);
   };
 
@@ -491,15 +520,64 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={handleApply}
-              className="w-full py-2.5 rounded font-label-caps text-xs font-bold text-white shadow-sm flex items-center justify-center gap-2 min-h-[44px]"
-              style={{ backgroundColor: accent }}
-            >
-              <span className="material-symbols-outlined text-base">add_task</span>
-              <span>{isRate ? 'START CRI & RECORD' : 'RECORD ON FLOWSHEET'}</span>
-            </button>
+            {/* Turn the calculated dose into an order on the treatment sheet */}
+            <div className="border-t border-[#E2E8F0] pt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label
+                    htmlFor="calc-route"
+                    className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1"
+                  >
+                    Route
+                  </label>
+                  <select
+                    id="calc-route"
+                    value={route}
+                    onChange={(e) => setRoute(e.target.value)}
+                    className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+                  >
+                    {ROUTES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="calc-interval"
+                    className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1"
+                  >
+                    {isRate || selected.isCRI ? 'Continuous' : 'Interval (h)'}
+                  </label>
+                  <input
+                    id="calc-interval"
+                    value={isRate || selected.isCRI ? '' : intervalHours}
+                    disabled={isRate || selected.isCRI}
+                    onChange={(e) => setIntervalHours(e.target.value)}
+                    inputMode="numeric"
+                    placeholder={
+                      isRate || selected.isCRI ? 'runs until stopped' : 'blank = single dose'
+                    }
+                    className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm disabled:bg-[#f8f9ff] disabled:text-[#747686] focus:outline-none focus:border-[#0037b0]"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddToSheet}
+                className="w-full py-2.5 rounded font-label-caps text-xs font-bold text-white shadow-sm flex items-center justify-center gap-2 min-h-[44px]"
+                style={{ backgroundColor: accent }}
+              >
+                <span className="material-symbols-outlined text-base">add_task</span>
+                <span>
+                  {isRate || selected.isCRI
+                    ? 'Start this CRI on the treatment sheet'
+                    : 'Add to the treatment sheet'}
+                </span>
+              </button>
+            </div>
 
             <p className="font-derived-value text-[11px] text-[#747686] text-center">
               Decision support only — verify every dose against your own formulary before

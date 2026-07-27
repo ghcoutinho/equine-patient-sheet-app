@@ -57,7 +57,14 @@ export function columnToEntry(
 
     heartRate: vitals?.heartRate,
     respiratoryRate: vitals?.respiratoryRate,
-    temperature: vitals?.temperatureC,
+    // Foals are charted in °F and adults in °C. The scoring thresholds are all
+    // Celsius, so a Fahrenheit reading is converted rather than dropped —
+    // previously a foal's temperature never reached any panel at all.
+    temperature: Number.isFinite(vitals?.temperatureC)
+      ? vitals?.temperatureC
+      : Number.isFinite(vitals?.temperatureF)
+        ? Math.round((((vitals?.temperatureF as number) - 32) * 5) / 9 * 10) / 10
+        : undefined,
     mucousMembranes: vitals?.mucousMembranes ? MM_MAP[vitals.mucousMembranes] : undefined,
     capillaryRefillTime: vitals?.crtSeconds,
 

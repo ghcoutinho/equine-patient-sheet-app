@@ -38,7 +38,8 @@ export type ViewTab =
   | 'calculator'
   | 'ranges'
   | 'patients'
-  | 'meds';
+  | 'meds'
+  | 'labs';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
@@ -234,6 +235,19 @@ export interface TriggerThresholds {
   temperatureC: number;
 }
 
+/**
+ * Sex in the equine vocabulary. The terms are age-dependent — a colt becomes a
+ * stallion or gelding, a filly becomes a mare — so this is recorded alongside
+ * the date of birth and the two together drive how the patient is labelled.
+ */
+export type EquineSex =
+  | 'MARE'
+  | 'FILLY'
+  | 'STALLION'
+  | 'COLT'
+  | 'GELDING'
+  | 'UNKNOWN';
+
 export type PatientCategory = 'ADULT_COLIC' | 'NEONATAL_FOAL' | 'ADULT_GI';
 export type PatientType = 'ADULT' | 'FOAL' | 'BOTH';
 
@@ -289,6 +303,15 @@ export interface Patient {
   schedule?: ScheduledTask[];
   /** Drugs, fluids and infusions, open and closed. */
   treatments?: Treatment[];
+  /** Full laboratory panels, newest last. */
+  labPanels?: LabPanel[];
+  /**
+   * Date of birth, ISO `YYYY-MM-DD`. When present the age class is computed
+   * from it rather than typed, so it stays correct as the patient ages —
+   * which matters for a foal, where the reference intervals change weekly.
+   */
+  dateOfBirth?: string;
+  sex?: EquineSex;
   
   // Merged from old patient
   category: PatientCategory;
@@ -299,6 +322,24 @@ export interface Patient {
   gestationalAgeDays?: number;
   colostrumIntake?: 'ADEQUATE' | 'POOR' | 'NONE' | 'UNKNOWN';
   damHistory?: string;
+}
+
+/**
+ * A full laboratory panel drawn at one point in time.
+ *
+ * Only entered parameters are stored. Anything calculable from them — the red
+ * cell indices, globulin, the differential percentages — is computed on read,
+ * so a stored panel can never disagree with its own arithmetic.
+ */
+export interface LabPanel {
+  id: string;
+  /** ISO timestamp the sample was collected. */
+  collectedAt: string;
+  recordedBy?: string;
+  sampleType?: string;
+  /** Parameter id to entered value. Derived parameters never appear here. */
+  values: Record<string, number>;
+  note?: string;
 }
 
 export interface MedicationCalc {
