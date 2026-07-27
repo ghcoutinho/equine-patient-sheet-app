@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Patient, FlowsheetColumn, AssessmentSeverity } from '../../types';
 import { GutSoundsGlyph } from '../ui/GutSoundsQuadrant';
 import { formatManure } from '../../utils/manure';
@@ -7,6 +7,8 @@ import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
+import { BODY_SYSTEM_META } from '../../data/bodySystems';
+import { computeDue, DUE_STYLES, TASK_KIND_ICON, markDone } from '../../utils/schedule';
 
 const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
   normal: 'text-[#047857]',
@@ -17,15 +19,82 @@ const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
 
 interface FlowsheetViewProps {
   patient: Patient;
+  clinician?: string;
   onUpdatePatient: (updatedPatient: Patient) => void;
   onOpenNewAssessment: () => void;
 }
 
 export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   patient,
+  clinician,
   onUpdatePatient,
   onOpenNewAssessment,
 }) => {
+  // Ticks once a minute so "12 min late" stays honest without re-rendering
+  // the grid on every frame.
+  const [now, setNow] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState<Record<string, string>>({});
+  const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
+
+  const due = computeDue(patient.schedule, now);
+
+  const handleMarkDone = (taskId: string) => {
+    onUpdatePatient({ ...patient, schedule: markDone(patient.schedule, taskId, new Date()) });
+  };
+
+  const handleDeleteRound = (idx: number) => {
+    const next = patient.flowsheetHistory.filter((_, i) => i !== idx);
+    onUpdatePatient({ ...patient, flowsheetHistory: next });
+    setConfirmDeleteIdx(null);
+  };
+
+  const startEditRound = (idx: number) => {
+    const c = patient.flowsheetHistory[idx];
+    setEditingIdx(idx);
+    setEditDraft({
+      time: c.time,
+      heartRate: c.vitals.heartRate?.toString() ?? '',
+      temperature: (c.vitals.temperatureC ?? c.vitals.temperatureF)?.toString() ?? '',
+      respiratoryRate: c.vitals.respiratoryRate?.toString() ?? '',
+      refluxVolumeL: c.gi.refluxVolumeL?.toString() ?? '',
+      lactate: typeof c.labs.lactate === 'number' ? String(c.labs.lactate) : '',
+      note: c.note ?? '',
+    });
+  };
+
+  const num = (v: string) => (v.trim() === '' ? undefined : Number.isFinite(Number(v)) ? Number(v) : undefined);
+
+  const saveEditRound = (idx: number) => {
+    const c = patient.flowsheetHistory[idx];
+    const isFoal = patient.isFoal || patient.category === 'NEONATAL_FOAL';
+    const t = num(editDraft.temperature);
+    const updated: FlowsheetColumn = {
+      ...c,
+      time: editDraft.time || c.time,
+      editedBy: clinician || 'Unattributed',
+      editedAt: new Date().toISOString(),
+      vitals: {
+        ...c.vitals,
+        heartRate: num(editDraft.heartRate),
+        respiratoryRate: num(editDraft.respiratoryRate),
+        temperatureC: isFoal ? c.vitals.temperatureC : t,
+        temperatureF: isFoal ? t : c.vitals.temperatureF,
+      },
+      gi: { ...c.gi, refluxVolumeL: num(editDraft.refluxVolumeL) },
+      labs: { ...c.labs, lactate: num(editDraft.lactate) },
+      note: editDraft.note || undefined,
+    };
+    const next = patient.flowsheetHistory.map((col, i) => (i === idx ? updated : col));
+    onUpdatePatient({ ...patient, flowsheetHistory: next });
+    setEditingIdx(null);
+  };
+
   const [newHR, setNewHR] = useState<string>('');
   const [newTemp, setNewTemp] = useState<string>('');
   const [newReflux, setNewReflux] = useState<string>('');
@@ -174,6 +243,11 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
           <span className="text-xs font-body-md text-[#434655] bg-[#e5eeff] px-2 py-0.5 rounded">
             Case {patient.caseNumber} • {patient.breed}
           </span>
+          {patient.isTest && (
+            <span className="text-[10px] font-label-caps px-1.5 py-0.5 rounded bg-[#FFFBEB] border border-[#B45309]/30 text-[#B45309]">
+              TEST
+            </span>
+          )}
         </div>
 
         <div className="flex gap-2 text-xs font-label-caps">
@@ -190,10 +264,163 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
         </div>
       </div>
 
+      {/* Diagnosis banner + body systems + next due */}
+      <div className="bg-white px-4 md:px-6 py-3 border-b border-[#E2E8F0] flex flex-wrap items-center gap-x-6 gap-y-3 flex-shrink-0">
+        <div className="min-w-0 flex-1">
+          <span className="font-label-caps text-[10px] text-[#434655] uppercase tracking-wider block">
+            Primary diagnosis
+          </span>
+          <div className="flex items-center gap-2 flex-wrap mt-0.5">
+            <span className="font-headline text-base font-bold text-[#0b1c30]">
+              {patient.diagnosis || 'Not recorded'}
+            </span>
+            {(patient.bodySystems ?? []).map((sys) => {
+              const meta = BODY_SYSTEM_META[sys];
+              return (
+                <span
+                  key={sys}
+                  title={meta.label}
+                  aria-label={meta.label}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-sans"
+                  style={{ color: meta.colour, borderColor: `${meta.colour}55`, backgroundColor: `${meta.colour}12` }}
+                >
+                  <span className="material-symbols-outlined text-base">{meta.icon}</span>
+                  {meta.label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Next due */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-label-caps text-[10px] text-[#434655] uppercase tracking-wider">
+            Next due
+          </span>
+          {due.length === 0 && (
+            <span className="font-derived-value text-xs text-[#747686]">No schedule set</span>
+          )}
+          {due.slice(0, 3).map((d) => {
+            const st = DUE_STYLES[d.state];
+            return (
+              <button
+                key={d.task.id}
+                type="button"
+                onClick={() => handleMarkDone(d.task.id)}
+                title={`Mark ${d.task.label} done now`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-sans min-h-[32px] ${st.chip}`}
+              >
+                <span className="material-symbols-outlined text-sm">
+                  {TASK_KIND_ICON[d.task.kind]}
+                </span>
+                <span className="font-bold">{d.task.label}</span>
+                <span className="opacity-90">{d.label}</span>
+              </button>
+            );
+          })}
+          {due.length > 0 && (
+            <span className="font-derived-value text-[10px] text-[#747686]">
+              tap to mark done
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Grid Canvas + Intelligence Rail */}
       <div className="flex-1 flex overflow-hidden">
         {/* Center Flowsheet Table */}
         <div className="flex-1 overflow-auto p-4">
+          {confirmDeleteIdx !== null && patient.flowsheetHistory[confirmDeleteIdx] && (
+            <div className="mb-3 bg-white border border-[#B91C1C]/30 rounded p-4" role="alertdialog">
+              <p className="font-body-md text-sm text-[#0b1c30]">
+                Delete the{' '}
+                <strong>{patient.flowsheetHistory[confirmDeleteIdx].time}</strong> round
+                {patient.flowsheetHistory[confirmDeleteIdx].recordedBy
+                  ? ` recorded by ${patient.flowsheetHistory[confirmDeleteIdx].recordedBy}`
+                  : ''}
+                ? This removes the observations permanently.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteRound(confirmDeleteIdx)}
+                  className="min-h-[40px] px-4 rounded bg-[#B91C1C] text-white font-label-caps text-xs font-bold"
+                >
+                  Delete round
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteIdx(null)}
+                  className="min-h-[40px] px-4 rounded border border-[#E2E8F0] bg-white font-label-caps text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {editingIdx !== null && patient.flowsheetHistory[editingIdx] && (
+            <div className="mb-3 bg-white border border-[#0037b0]/30 rounded p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-headline text-sm font-bold text-[#0b1c30]">
+                  Edit round · {patient.flowsheetHistory[editingIdx].time}
+                </h3>
+                <span className="font-derived-value text-[11px] text-[#747686]">
+                  Saved as edited by {clinician || 'Unattributed'}
+                </span>
+              </div>
+              <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {(
+                  [
+                    ['time', 'Time', 'text'],
+                    ['heartRate', 'HR (bpm)', 'number'],
+                    ['temperature', 'Temp', 'number'],
+                    ['respiratoryRate', 'RR', 'number'],
+                    ['refluxVolumeL', 'Reflux (L)', 'number'],
+                    ['lactate', 'Lactate', 'number'],
+                  ] as const
+                ).map(([field, label, type]) => (
+                  <label key={field} className="block">
+                    <span className="font-label-caps text-[10px] text-[#434655] block mb-1">
+                      {label}
+                    </span>
+                    <input
+                      type={type}
+                      step="0.1"
+                      value={editDraft[field] ?? ''}
+                      onChange={(e) => setEditDraft({ ...editDraft, [field]: e.target.value })}
+                      className="w-full min-h-[40px] px-2 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none no-spinner"
+                    />
+                  </label>
+                ))}
+              </div>
+              <label className="block mt-3">
+                <span className="font-label-caps text-[10px] text-[#434655] block mb-1">Note</span>
+                <input
+                  value={editDraft.note ?? ''}
+                  onChange={(e) => setEditDraft({ ...editDraft, note: e.target.value })}
+                  className="w-full min-h-[40px] px-2 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+                />
+              </label>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={() => saveEditRound(editingIdx)}
+                  className="min-h-[40px] px-4 rounded bg-[#0037b0] text-white font-label-caps text-xs font-bold"
+                >
+                  Save changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingIdx(null)}
+                  className="min-h-[40px] px-4 rounded border border-[#E2E8F0] bg-white font-label-caps text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded border border-[#E2E8F0] shadow-sm overflow-hidden relative">
             <table className="w-full text-left border-collapse min-w-[700px]">
               {/* Header Row */}
@@ -203,13 +430,37 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                     Parameter
                   </th>
                   {patient.flowsheetHistory.map((col, idx) => (
-                    <th 
-                      key={idx} 
-                      className={`px-4 py-3 border-b border-r border-[#E2E8F0] font-clinical-value text-sm text-center min-w-[90px] ${
+                    <th
+                      key={idx}
+                      className={`px-2 py-2 border-b border-r border-[#E2E8F0] font-clinical-value text-sm text-center min-w-[110px] align-top ${
                         idx === patient.flowsheetHistory.length - 1 ? 'bg-[#e5eeff] font-bold text-[#0037b0]' : ''
                       }`}
                     >
-                      {col.time}
+                      <span className="block">{col.time}</span>
+                      <span className="block font-derived-value text-[9px] text-[#747686] font-normal truncate">
+                        {col.recordedBy || 'Unattributed'}
+                        {col.editedBy && ' · edited'}
+                      </span>
+                      <span className="flex items-center justify-center gap-1 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditRound(idx)}
+                          title={`Edit the ${col.time} round`}
+                          aria-label={`Edit the ${col.time} round`}
+                          className="w-7 h-7 rounded hover:bg-white/70 text-[#434655] flex items-center justify-center"
+                        >
+                          <span className="material-symbols-outlined text-sm">edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteIdx(idx)}
+                          title={`Delete the ${col.time} round`}
+                          aria-label={`Delete the ${col.time} round`}
+                          className="w-7 h-7 rounded hover:bg-white/70 text-[#B91C1C] flex items-center justify-center"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      </span>
                     </th>
                   ))}
                   <th className="px-4 py-3 border-b border-[#E2E8F0] font-label-caps text-xs text-[#0037b0] text-center min-w-[120px] bg-[#eff4ff]">

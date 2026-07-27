@@ -17,6 +17,9 @@ import {
   evaluateCallSurgeonTriggers,
   latestColumn,
 } from '../../utils/callSurgeonTriggers';
+import { classifyAgainstReference } from '../../utils/referenceLookup';
+import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
+import { completeTasksForRound } from '../../utils/schedule';
 import {
   ANALGESIA,
   CRYOTHERAPY,
@@ -36,9 +39,25 @@ import {
 
 interface RoundEntryViewProps {
   patient: Patient;
+  clinician?: string;
   onUpdatePatient: (patient: Patient) => void;
   onDone: () => void;
 }
+
+/**
+ * Live colouring for a vitals field. Reference intervals exist for the lab
+ * analytes; heart rate, respiratory rate and temperature use the SIRS
+ * thresholds the app already applies elsewhere, so the flag on screen and the
+ * SIRS count computed on save cannot disagree.
+ */
+type FieldSeverity = 'normal' | 'watch' | 'warning' | 'critical' | undefined;
+
+const FIELD_STYLE: Record<Exclude<FieldSeverity, undefined>, { border: string; text: string; label: string }> = {
+  normal: { border: '#047857', text: '#047857', label: 'within range' },
+  watch: { border: '#B45309', text: '#B45309', label: 'outside range' },
+  warning: { border: '#C2410C', text: '#C2410C', label: 'outside range' },
+  critical: { border: '#B91C1C', text: '#B91C1C', label: 'critical' },
+};
 
 type SectionId = 'vitals' | 'pain' | 'gi' | 'labs' | 'laminitis' | 'support';
 
@@ -63,6 +82,7 @@ const toInput = (n: number | undefined): string => (n === undefined ? '' : Strin
 
 export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   patient,
+  clinician,
   onUpdatePatient,
   onDone,
 }) => {
@@ -159,7 +179,10 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
     const hasAny = (o: object) => Object.values(o).some((v) => v !== undefined);
 
     return {
+      id: `${now.getTime()}`,
       time: timeStr,
+      recordedAt: now.toISOString(),
+      recordedBy: clinician || 'Unattributed',
       vitals: {
         heartRate: toNumber(hr),
         temperatureC: !patient.isFoal ? numTemp : undefined,
@@ -193,6 +216,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       Number.isFinite(r) && r! > 20,
     ].filter(Boolean).length;
 
+    const now = new Date();
     const updatedPatient: Patient = {
       ...patient,
       sirsCriteriaMet: sirsHits >= 2,
@@ -200,17 +224,52 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
         sirsHits >= 2 ? `${sirsHits} of 4 SIRS criteria met this round` : undefined,
       lastObsTime: 'Just now',
       flowsheetHistory: [...patient.flowsheetHistory, newColumn],
+      // Charting a round completes the monitoring tasks it covers, so the
+      // "next due" clock restarts from the observation rather than the hour.
+      schedule: completeTasksForRound(patient, newColumn, now),
     };
 
     onUpdatePatient(updatedPatient);
     onDone();
   };
 
+  const isFoalPatient = patient.isFoal || patient.category === 'NEONATAL_FOAL';
+  const ageClass = ageClassFor(patient.age, isFoalPatient);
+
+  /**
+   * Severity for a vitals or lab field. Lab analytes defer to the published
+   * age-appropriate interval; the three SIRS vitals use the same thresholds the
+   * save handler applies, so the colour on screen matches the SIRS count.
+   */
+  const severityFor = (field: string, raw: string): FieldSeverity => {
+    const v = toNumber(raw);
+    if (v === undefined) return undefined;
+    switch (field) {
+      case 'heartRate':
+        return isFoalPatient
+          ? v > 120 || v < 60 ? 'warning' : 'normal'
+          : v > 52 ? 'warning' : 'normal';
+      case 'temperature':
+        return isFoalPatient
+          ? v > 39.5 || v < 37.2 ? 'warning' : 'normal'
+          : v > 38.5 || v < 37 ? 'warning' : 'normal';
+      case 'respiratoryRate':
+        return isFoalPatient ? (v > 56 ? 'warning' : 'normal') : v > 20 ? 'warning' : 'normal';
+      case 'crtSeconds':
+        return v > 2 ? 'warning' : 'normal';
+      case 'lactate':
+      case 'pcv':
+        return classifyAgainstReference(field, v, ageClass);
+      default:
+        return undefined;
+    }
+  };
+
   const numberField = (
     label: string,
     value: string,
     setValue: (s: string) => void,
-    opts: { placeholder?: string; step?: string; prev?: number; unit?: string; accent?: string },
+    opts: { placeholder?: string; step?: string; prev?: number; unit?: string; accent?: string; field?: string },
   ) => (
     <div>
       <div className="flex justify-between items-center mb-1">
@@ -224,16 +283,50 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
           </span>
         )}
       </div>
-      <input
-        id={`f-${label}`}
-        type="number"
-        step={opts.step}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder={opts.placeholder}
-        className="w-full font-clinical-value text-lg p-3 bg-white border border-[#c4c5d7] rounded focus:ring-2 focus:outline-none no-spinner"
-        style={{ ['--tw-ring-color' as string]: opts.accent ?? '#0037b0' }}
-      />
+      {(() => {
+        const sev = opts.field ? severityFor(opts.field, value) : undefined;
+        const style = sev ? FIELD_STYLE[sev] : undefined;
+        return (
+          <>
+            <input
+              id={`f-${label}`}
+              type="number"
+              step={opts.step}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={opts.placeholder}
+              aria-describedby={style ? `f-${label}-flag` : undefined}
+              className="w-full font-clinical-value text-lg p-3 bg-white border-2 rounded focus:ring-2 focus:outline-none no-spinner"
+              style={{
+                ['--tw-ring-color' as string]: opts.accent ?? '#0037b0',
+                borderColor: style ? style.border : '#c4c5d7',
+                color: style ? style.text : undefined,
+              }}
+            />
+            {style && sev !== 'normal' && (
+              <span
+                id={`f-${label}-flag`}
+                role="status"
+                className="mt-1 inline-flex items-center gap-1 font-derived-value text-[11px]"
+                style={{ color: style.text }}
+              >
+                <span className="material-symbols-outlined text-sm">warning</span>
+                {style.label}
+              </span>
+            )}
+            {style && sev === 'normal' && (
+              <span
+                id={`f-${label}-flag`}
+                className="mt-1 inline-flex items-center gap-1 font-derived-value text-[11px]"
+                style={{ color: style.text }}
+              >
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                {style.label}
+              </span>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 
@@ -281,8 +374,13 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             {patient.caseNumber})
           </p>
         </div>
-        <span className="font-clinical-value text-sm text-[#0037b0] bg-[#e5eeff] px-2.5 py-1 rounded font-bold">
-          NOW
+        <span className="text-right">
+          <span className="font-clinical-value text-sm text-[#0037b0] bg-[#e5eeff] px-2.5 py-1 rounded font-bold block">
+            NOW
+          </span>
+          <span className="font-derived-value text-[11px] text-[#747686] block mt-1">
+            Charting as {clinician || 'Unattributed'}
+          </span>
         </span>
       </div>
 
@@ -328,6 +426,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
           {numberField('Heart Rate (bpm)', hr, setHr, {
             placeholder: 'e.g. 88',
             prev: latest?.vitals?.heartRate,
+            field: 'heartRate',
           })}
           {numberField(
             `Temperature (${patient.isFoal ? '°F' : '°C'})`,
@@ -337,16 +436,19 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
               placeholder: patient.isFoal ? 'e.g. 102.8' : 'e.g. 38.9',
               step: '0.1',
               prev: patient.isFoal ? latest?.vitals?.temperatureF : latest?.vitals?.temperatureC,
+              field: 'temperature',
             },
           )}
           {numberField('Respiratory Rate (brpm)', rr, setRr, {
             placeholder: 'e.g. 24',
             prev: latest?.vitals?.respiratoryRate,
+            field: 'respiratoryRate',
           })}
           {numberField('Capillary Refill Time (s)', crt, setCrt, {
             placeholder: 'e.g. 2',
             step: '0.5',
             prev: latest?.vitals?.crtSeconds,
+            field: 'crtSeconds',
           })}
           <OptionGrid
             definition={MUCOUS_MEMBRANES}
@@ -457,11 +559,13 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             step: '0.1',
             prev: typeof latest?.labs?.lactate === 'number' ? latest.labs.lactate : undefined,
             accent: '#0E7490',
+            field: 'lactate',
           })}
           {numberField('PCV (%)', pcv, setPcv, {
             placeholder: 'e.g. 42',
             prev: latest?.labs?.pcv,
             accent: '#0E7490',
+            field: 'pcv',
           })}
         </>,
       )}

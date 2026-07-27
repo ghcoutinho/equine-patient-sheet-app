@@ -128,6 +128,18 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         </button>
 
         <button
+          onClick={() => setCurrentTab('patients')}
+          className={`flex items-center gap-3 px-6 py-2.5 text-xs font-label-caps tracking-wider transition-all text-left ${
+            currentTab === 'patients'
+              ? 'bg-[#1d4ed8] text-white font-bold rounded-r-full mr-4 shadow-sm'
+              : 'text-[#434655] dark:text-[#d3e4fe] hover:bg-[#eff4ff]'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">manage_accounts</span>
+          <span>Patient Records</span>
+        </button>
+
+        <button
           onClick={() => setCurrentTab('dashboard')}
           className={`flex items-center gap-3 px-6 py-2.5 text-xs font-label-caps tracking-wider transition-all text-left ${
             currentTab === 'dashboard'

@@ -1,4 +1,32 @@
-export type PatientStatus = 'CRITICAL' | 'WATCH' | 'NORMAL' | 'ACTIVE' | 'DISCHARGED' | 'DECEASED';
+export type PatientStatus =
+  | 'CRITICAL'
+  | 'WATCH'
+  | 'NORMAL'
+  | 'ACTIVE'
+  | 'DISCHARGED'
+  | 'DECEASED'
+  | 'ARCHIVED';
+
+/** Lifecycle states a patient record can be in, independent of clinical acuity. */
+export type PatientLifecycle = 'ACTIVE' | 'DISCHARGED' | 'ARCHIVED';
+
+/**
+ * Body systems involved in the primary problem. Drives the icon strip on the
+ * flowsheet so the system under treatment is legible at a glance.
+ */
+export type BodySystem =
+  | 'GASTROINTESTINAL'
+  | 'RESPIRATORY'
+  | 'NEUROLOGIC'
+  | 'CARDIOVASCULAR'
+  | 'MUSCULOSKELETAL'
+  | 'URINARY'
+  | 'REPRODUCTIVE'
+  | 'INTEGUMENT'
+  | 'OPHTHALMIC'
+  | 'HEPATIC'
+  | 'HAEMOLYMPHATIC'
+  | 'ENDOCRINE';
 
 export type ViewTab = 
   | 'overview' 
@@ -8,7 +36,8 @@ export type ViewTab =
   | 'assess' 
   | 'scores' 
   | 'calculator'
-  | 'ranges';
+  | 'ranges'
+  | 'patients';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
@@ -98,7 +127,14 @@ export interface LabsData {
 }
 
 export interface FlowsheetColumn {
+  /** Stable identity so a round can be edited or removed. */
+  id?: string;
   time: string; // e.g. "14:00"
+  /** Full ISO timestamp; `time` remains the display label. */
+  recordedAt?: string;
+  recordedBy?: string;
+  editedBy?: string;
+  editedAt?: string;
   vitals: VitalsData;
   gi: GIData;
   labs: LabsData;
@@ -106,6 +142,27 @@ export interface FlowsheetColumn {
   laminitis?: LaminitisData;
   support?: SupportData;
   note?: string;
+}
+
+/** What kind of task is on the schedule. */
+export type ScheduleTaskKind = 'TPR' | 'PHYSICAL_EXAM' | 'MEDICATION' | 'LAB';
+
+/**
+ * A recurring item on the patient's monitoring schedule. Intervals are set by
+ * the attending clinician; `lastDoneAt` is the anchor the next due time is
+ * computed from.
+ */
+export interface ScheduledTask {
+  id: string;
+  kind: ScheduleTaskKind;
+  label: string;
+  /** Hours between repeats. */
+  intervalHours: number;
+  /** ISO timestamp of the last completion, if any. */
+  lastDoneAt?: string;
+  /** Drug name and dose text, for MEDICATION tasks. */
+  detail?: string;
+  active: boolean;
 }
 
 /**
@@ -164,6 +221,17 @@ export interface Patient {
   fssInfectiousSite?: string;
   
   criActive?: string;
+
+  /** Sample data shipped with the app, so it can be filtered or purged. */
+  isTest?: boolean;
+  lifecycle?: PatientLifecycle;
+  dischargedAt?: string;
+  archivedAt?: string;
+  /** Primary problem, shown as the flowsheet banner. */
+  diagnosis?: string;
+  bodySystems?: BodySystem[];
+  attendingClinician?: string;
+  schedule?: ScheduledTask[];
   
   // Merged from old patient
   category: PatientCategory;

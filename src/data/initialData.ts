@@ -1,9 +1,23 @@
 import { Patient, MedicationCalc } from '../types';
+import { defaultSchedule } from '../utils/schedule';
 
+const DEFAULT_ADULT_SCHEDULE = defaultSchedule(false);
+const DEFAULT_FOAL_SCHEDULE = defaultSchedule(true);
+
+/**
+ * Sample patients shipped with the app. Every record is flagged isTest so it can
+ * be filtered out of the ward board or purged once real cases are admitted, and
+ * so a demo case can never be mistaken for a live one.
+ */
 export const INITIAL_PATIENTS: Patient[] = [
   {
     id: 'p1',
-    name: 'Thunder',
+    name: 'Thunder (TEST)',
+    isTest: true,
+    lifecycle: 'ACTIVE',
+    diagnosis: 'Large colon volvulus — post-operative',
+    bodySystems: ['GASTROINTESTINAL', 'CARDIOVASCULAR'],
+    schedule: DEFAULT_ADULT_SCHEDULE,
     caseNumber: '#88219',
     breed: 'Thoroughbred',
     weightKg: 520,
@@ -43,7 +57,12 @@ export const INITIAL_PATIENTS: Patient[] = [
   },
   {
     id: 'p2',
-    name: 'Star Gazer',
+    name: 'Star Gazer (TEST)',
+    isTest: true,
+    lifecycle: 'ACTIVE',
+    diagnosis: 'Small intestinal strangulating obstruction',
+    bodySystems: ['GASTROINTESTINAL'],
+    schedule: DEFAULT_ADULT_SCHEDULE,
     caseNumber: '#88219',
     breed: 'Arabian',
     weightKg: 450,
@@ -84,7 +103,12 @@ export const INITIAL_PATIENTS: Patient[] = [
   },
   {
     id: 'p3',
-    name: 'Bella',
+    name: 'Bella (TEST)',
+    isTest: true,
+    lifecycle: 'ACTIVE',
+    diagnosis: 'Pelvic flexure impaction — medical management',
+    bodySystems: ['GASTROINTESTINAL'],
+    schedule: DEFAULT_ADULT_SCHEDULE,
     caseNumber: '#91024',
     breed: 'Warmblood',
     weightKg: 610,
@@ -118,7 +142,12 @@ export const INITIAL_PATIENTS: Patient[] = [
   },
   {
     id: 'p4',
-    name: 'Thunder (Foal)',
+    name: 'Thunder (Foal) (TEST)',
+    isTest: true,
+    lifecycle: 'ACTIVE',
+    diagnosis: 'Neonatal sepsis, suspected failure of passive transfer',
+    bodySystems: ['HAEMOLYMPHATIC', 'GASTROINTESTINAL'],
+    schedule: DEFAULT_FOAL_SCHEDULE,
     caseNumber: '#89421',
     breed: 'Quarter Horse',
     weightKg: 45,

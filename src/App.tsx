@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ViewTab, Patient } from './types';
 import { INITIAL_PATIENTS } from './data/initialData';
+import { usePersistentPatients, useClinician } from './utils/persistence';
 
 import { TopNavBar } from './components/TopNavBar';
 import { SideNavBar } from './components/SideNavBar';
@@ -15,14 +16,24 @@ import { RoundEntryView } from './components/views/RoundEntryView';
 import { NeonatalAssessmentView } from './components/views/NeonatalAssessmentView';
 import { DoseCalculatorView } from './components/views/DoseCalculatorView';
 import { ReferenceRangesView } from './components/views/ReferenceRangesView';
+import { PatientManagementView } from './components/views/PatientManagementView';
 
 export function App() {
-  const [patients, setPatients] = useState<Patient[]>(INITIAL_PATIENTS);
+  const [patients, setPatients, saveFailed] = usePersistentPatients(INITIAL_PATIENTS);
+  const [clinician, setClinician] = useClinician();
   const [activePatientId, setActivePatientId] = useState<string>('p1');
   const [currentTab, setCurrentTab] = useState<ViewTab>('dashboard');
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const activePatient = patients.find(p => p.id === activePatientId) || patients[0];
+
+  const handleDeletePatient = (id: string) => {
+    setPatients(prev => {
+      const next = prev.filter(p => p.id !== id);
+      if (id === activePatientId && next.length) setActivePatientId(next[0].id);
+      return next;
+    });
+  };
 
   const handleUpdatePatient = (updatedPatient: Patient) => {
     setPatients(prev => prev.map(p => p.id === updatedPatient.id ? updatedPatient : p));
@@ -77,6 +88,12 @@ export function App() {
         onOpenNewAssessment={() => setIsModalOpen(true)}
       />
 
+      {saveFailed && (
+        <div role="alert" className="bg-[#B91C1C] text-white text-xs font-label-caps px-4 py-2 text-center">
+          Could not save to this browser's local storage — changes will be lost on refresh.
+        </div>
+      )}
+
       {/* Main Workspace Layout */}
       <div className="flex-1 flex pt-[44px] pb-16 lg:pb-0">
         {/* Desktop Left Navigation Rail */}
@@ -108,6 +125,7 @@ export function App() {
           {currentTab === 'flowsheet' && (
             <FlowsheetView
               patient={activePatient}
+              clinician={clinician}
               onUpdatePatient={handleUpdatePatient}
               onOpenNewAssessment={() => setIsModalOpen(true)}
             />
@@ -123,6 +141,7 @@ export function App() {
           {currentTab === 'assess' && (
             <RoundEntryView
               patient={activePatient}
+              clinician={clinician}
               onUpdatePatient={handleUpdatePatient}
               onDone={() => setCurrentTab('flowsheet')}
             />
@@ -137,6 +156,18 @@ export function App() {
 
           {currentTab === 'ranges' && (
             <ReferenceRangesView patient={activePatient} />
+          )}
+
+          {currentTab === 'patients' && (
+            <PatientManagementView
+              patients={patients}
+              activePatientId={activePatientId}
+              clinician={clinician}
+              onUpdatePatient={handleUpdatePatient}
+              onDeletePatient={handleDeletePatient}
+              onSelectPatient={(id) => { setActivePatientId(id); setCurrentTab('flowsheet'); }}
+              onSetClinician={setClinician}
+            />
           )}
 
           {currentTab === 'calculator' && (

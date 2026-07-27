@@ -12,22 +12,88 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
 }) => {
   const [gestationDays, setGestationDays] = useState<number>(patient.fssPrematurityDays || 338);
   const [coldExtremities, setColdExtremities] = useState<boolean>(patient.fssColdExtremities || true);
-  const [infectiousSite, setInfectiousSite] = useState<string>(patient.fssInfectiousSite || 'Umbilicus');
-  const [glucosePending, setGlucosePending] = useState<boolean>(true);
-  const [iggPending, setIggPending] = useState<boolean>(true);
+  // Sepsis commonly seeds more than one site, so this is a multi-select and the
+  // list is extensible — the fixed four-option dropdown could not record
+  // "umbilicus and both hocks".
+  const [infectiousSites, setInfectiousSites] = useState<string[]>(() =>
+    patient.fssInfectiousSite
+      ? patient.fssInfectiousSite.split(';').map((v) => v.trim()).filter(Boolean)
+      : [],
+  );
+  const [siteOptions, setSiteOptions] = useState<string[]>(() => {
+    const base = [
+      'Umbilicus (omphalophlebitis)',
+      'Joint (septic arthritis)',
+      'Physis / osteomyelitis',
+      'Respiratory (pneumonia)',
+      'Gastrointestinal (enteritis)',
+      'Central nervous system (meningitis)',
+      'Ophthalmic (uveitis)',
+    ];
+    const existing = patient.fssInfectiousSite
+      ? patient.fssInfectiousSite.split(';').map((v) => v.trim()).filter(Boolean)
+      : [];
+    return Array.from(new Set([...base, ...existing]));
+  });
+  const [newSite, setNewSite] = useState('');
+
+  // Numeric results. Absent means genuinely pending; a value ends the pending
+  // state, so the score narrows as results arrive rather than being toggled.
+  const [glucose, setGlucose] = useState<string>('');
+  const [igg, setIgg] = useState<string>('');
+
+  const num = (v: string) => (v.trim() === '' ? undefined : Number.isFinite(Number(v)) ? Number(v) : undefined);
+  const glucoseValue = num(glucose);
+  const iggValue = num(igg);
+  const glucosePending = glucoseValue === undefined;
+  const iggPending = iggValue === undefined;
+
+  const toggleSite = (site: string) =>
+    setInfectiousSites((prev) =>
+      prev.includes(site) ? prev.filter((s) => s !== site) : [...prev, site],
+    );
+
+  const addSite = () => {
+    const v = newSite.trim();
+    if (!v) return;
+    setSiteOptions((prev) => (prev.includes(v) ? prev : [...prev, v]));
+    setInfectiousSites((prev) => (prev.includes(v) ? prev : [...prev, v]));
+    setNewSite('');
+  };
 
   // Compute Foal Survival Score (FSS)
-  const confirmedScore = (gestationDays < 320 ? 0 : gestationDays < 330 ? 1 : 2) + 
-                        (coldExtremities ? 0 : 2) + 
-                        (infectiousSite === 'None' ? 2 : 0);
-  const maxPendingScore = confirmedScore + (glucosePending ? 2 : 0) + (iggPending ? 3 : 0);
+  // Foal Survival Score contributions. Infectious sites score on the published
+  // "fewer than 2 sites" criterion rather than on "none identified".
+  const confirmedScore =
+    (gestationDays < 320 ? 0 : gestationDays < 330 ? 1 : 2) +
+    (coldExtremities ? 0 : 2) +
+    (infectiousSites.length < 2 ? 1 : 0) +
+    (glucoseValue !== undefined && glucoseValue > 40 ? 1 : 0) +
+    (iggValue !== undefined && iggValue > 800 ? 1 : 0);
+  // Pending results can still add their point, so the ceiling reflects
+  // uncertainty rather than assuming the worst.
+  const maxPendingScore = confirmedScore + (glucosePending ? 1 : 0) + (iggPending ? 1 : 0);
+
+  /**
+   * Foal Survival Score band. The published scale runs 0–7, where 0 is roughly a
+   * 3% and 7 a 97% probability of survival, with a threshold around 5 for
+   * predicting survival. The wording here describes the score band only — it is
+   * deliberately not a percentage, because interpolating one between the two
+   * published anchors would invent precision the model does not have.
+   */
+  const fssBand = ((score: number) => {
+    if (score >= 5) return { label: 'FAVOURABLE BAND', colour: '#047857' };
+    if (score >= 3) return { label: 'GUARDED BAND', colour: '#C2410C' };
+    return { label: 'POOR BAND', colour: '#B91C1C' };
+  })(confirmedScore);
+
 
   const handleUpdate = () => {
     const updated: Patient = {
       ...patient,
       fssPrematurityDays: gestationDays,
       fssColdExtremities: coldExtremities,
-      fssInfectiousSite: infectiousSite,
+      fssInfectiousSite: infectiousSites.join('; '),
       casScoreConfirmed: confirmedScore,
       casScoreMaxPending: maxPendingScore,
     };
@@ -60,11 +126,23 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
             FSS SCORE RANGE
           </span>
           <span className="font-display text-3xl text-[#6D28D9] font-bold">
-            {confirmedScore}-{maxPendingScore}
+            {confirmedScore === maxPendingScore
+              ? confirmedScore
+              : `${confirmedScore}-${maxPendingScore}`}
+            <span className="text-sm text-[#747686]">/7</span>
           </span>
-          <span className="font-derived-value text-[11px] text-[#B91C1C] block font-bold mt-0.5">
-            HIGH SEPSIS RISK
+          <span
+            className="font-derived-value text-[11px] block font-bold mt-0.5"
+            style={{ color: fssBand.colour }}
+          >
+            {fssBand.label}
           </span>
+          {confirmedScore !== maxPendingScore && (
+            <span className="font-derived-value text-[10px] text-[#747686] block">
+              {(glucosePending ? 1 : 0) + (iggPending ? 1 : 0)} result
+              {(glucosePending ? 1 : 0) + (iggPending ? 1 : 0) === 1 ? '' : 's'} pending
+            </span>
+          )}
         </div>
       </div>
 
@@ -114,50 +192,145 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
             </button>
           </div>
 
-          {/* Infectious Sites */}
+          {/* Infectious / inflammatory sites — multi-select and extensible */}
           <div>
-            <label className="font-label-caps text-xs text-[#434655] block mb-1">Infectious Site Identified</label>
-            <select
-              value={infectiousSite}
-              onChange={(e) => { setInfectiousSite(e.target.value); handleUpdate(); }}
-              className="w-full font-headline text-sm p-3 bg-white border border-[#c4c5d7] rounded focus:ring-2 focus:ring-[#6D28D9] focus:outline-none"
-            >
-              <option value="Umbilicus">Umbilicus (Omphalophlebitis)</option>
-              <option value="Joints">Joint Septicemia</option>
-              <option value="Respiratory">Pneumonia / Respiratory</option>
-              <option value="None">None Identified</option>
-            </select>
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="font-label-caps text-xs text-[#434655]">
+                Infectious / inflammatory sites
+              </span>
+              <span className="font-derived-value text-[11px] text-[#747686]">
+                {infectiousSites.length} selected
+                {infectiousSites.length >= 2 && ' — scores 0'}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Infectious sites">
+              {siteOptions.map((site) => {
+                const on = infectiousSites.includes(site);
+                return (
+                  <button
+                    key={site}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleSite(site)}
+                    className={`min-h-[44px] px-3 rounded-lg border text-xs text-left transition ${
+                      on
+                        ? 'bg-[#6D28D9] border-[#6D28D9] text-white font-bold'
+                        : 'bg-white border-[#E2E8F0] text-[#0b1c30] hover:bg-[#f8f9ff]'
+                    }`}
+                  >
+                    {site}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <input
+                value={newSite}
+                onChange={(e) => setNewSite(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addSite();
+                  }
+                }}
+                placeholder="Add another site…"
+                aria-label="Add another infectious site"
+                className="flex-1 min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#6D28D9] focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={addSite}
+                className="min-h-[44px] px-4 rounded bg-[#6D28D9] text-white font-label-caps text-xs font-bold"
+              >
+                Add
+              </button>
+            </div>
+            {infectiousSites.length === 0 && (
+              <p className="font-derived-value text-[11px] text-[#747686] mt-1">
+                None selected — scores 1 point (fewer than 2 sites).
+              </p>
+            )}
           </div>
 
-          {/* Pending Labs Toggles */}
+          {/* Laboratory results — entered, not toggled */}
           <div className="pt-4 border-t border-[#E2E8F0] space-y-3">
             <span className="font-label-caps text-xs text-[#434655] block uppercase tracking-wider">
-              Pending Laboratory Tests
+              Laboratory results
             </span>
 
-            <div className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded border border-[#E2E8F0] text-xs font-derived-value">
-              <span>Glucose Result</span>
-              <button
-                onClick={() => setGlucosePending(!glucosePending)}
-                className={`px-2.5 py-1 rounded font-label-caps text-[11px] ${
-                  glucosePending ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30' : 'bg-[#ECFDF5] text-[#047857]'
-                }`}
-              >
-                {glucosePending ? 'PENDING' : 'RECEIVED'}
-              </button>
-            </div>
+            <label className="block">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-label-caps text-xs text-[#434655]">Blood glucose (mg/dL)</span>
+                <span
+                  className={`px-2 py-0.5 rounded font-label-caps text-[10px] ${
+                    glucosePending
+                      ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30'
+                      : glucoseValue! > 40
+                        ? 'bg-[#ECFDF5] text-[#047857]'
+                        : 'bg-[#B91C1C] text-white'
+                  }`}
+                >
+                  {glucosePending ? 'PENDING' : glucoseValue! > 40 ? '+1 POINT' : 'HYPOGLYCAEMIC'}
+                </span>
+              </div>
+              <input
+                type="number"
+                value={glucose}
+                onChange={(e) => setGlucose(e.target.value)}
+                placeholder="e.g. 95"
+                className="w-full font-clinical-value text-lg p-3 bg-white border-2 rounded focus:ring-2 focus:ring-[#6D28D9] focus:outline-none no-spinner"
+                style={{ borderColor: glucosePending ? '#c4c5d7' : glucoseValue! > 40 ? '#047857' : '#B91C1C' }}
+              />
+              <span className="font-derived-value text-[11px] text-[#747686]">
+                Scores 1 point above 40 mg/dL.
+              </span>
+            </label>
 
-            <div className="flex items-center justify-between p-2.5 bg-[#F8FAFC] rounded border border-[#E2E8F0] text-xs font-derived-value">
-              <span>IgG Snapshot</span>
-              <button
-                onClick={() => setIggPending(!iggPending)}
-                className={`px-2.5 py-1 rounded font-label-caps text-[11px] ${
-                  iggPending ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30' : 'bg-[#ECFDF5] text-[#047857]'
-                }`}
-              >
-                {iggPending ? 'PENDING' : 'RECEIVED'}
-              </button>
-            </div>
+            <label className="block">
+              <div className="flex justify-between items-center mb-1">
+                <span className="font-label-caps text-xs text-[#434655]">IgG snapshot (mg/dL)</span>
+                <span
+                  className={`px-2 py-0.5 rounded font-label-caps text-[10px] ${
+                    iggPending
+                      ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30'
+                      : iggValue! > 800
+                        ? 'bg-[#ECFDF5] text-[#047857]'
+                        : iggValue! < 400
+                          ? 'bg-[#B91C1C] text-white'
+                          : 'bg-[#FFF7ED] text-[#C2410C]'
+                  }`}
+                >
+                  {iggPending
+                    ? 'PENDING'
+                    : iggValue! > 800
+                      ? '+1 POINT'
+                      : iggValue! < 400
+                        ? 'COMPLETE FPT'
+                        : 'PARTIAL FPT'}
+                </span>
+              </div>
+              <input
+                type="number"
+                value={igg}
+                onChange={(e) => setIgg(e.target.value)}
+                placeholder="e.g. 850"
+                className="w-full font-clinical-value text-lg p-3 bg-white border-2 rounded focus:ring-2 focus:ring-[#6D28D9] focus:outline-none no-spinner"
+                style={{
+                  borderColor: iggPending ? '#c4c5d7' : iggValue! > 800 ? '#047857' : iggValue! < 400 ? '#B91C1C' : '#C2410C',
+                }}
+              />
+              <span className="font-derived-value text-[11px] text-[#747686]">
+                Complete failure of passive transfer below 400 mg/dL; partial 400–800.
+              </span>
+            </label>
+
+            <button
+              type="button"
+              onClick={handleUpdate}
+              className="w-full min-h-[44px] rounded bg-[#6D28D9] text-white font-label-caps text-xs font-bold"
+            >
+              Save assessment
+            </button>
           </div>
         </div>
 
@@ -191,14 +364,30 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
               </div>
 
               <div className="flex justify-between font-label-caps text-[10px] text-[#434655]">
-                <span>0 (Non-survival)</span>
-                <span className="text-[#B45309]">Sepsis Alert (5)</span>
-                <span className="text-[#047857]">High Survival (11+)</span>
+                <span>0 · ~3% survival</span>
+                <span className="text-[#B45309]">5 · survival threshold</span>
+                <span className="text-[#047857]">7 · ~97% survival</span>
               </div>
             </div>
 
             <p className="font-derived-value text-xs text-[#434655] mt-6 bg-[#eff4ff] p-3 rounded border border-[#E2E8F0]">
-              Pending IgG lab test result could increase total score from {confirmedScore} to {maxPendingScore}. High probability of failure of passive transfer (FPT).
+              {confirmedScore === maxPendingScore ? (
+                <>
+                  All Foal Survival Score inputs are recorded — the score is exact at{' '}
+                  <strong>{confirmedScore}/7</strong>.
+                </>
+              ) : (
+                <>
+                  Pending results could raise the score from <strong>{confirmedScore}</strong> to{' '}
+                  <strong>{maxPendingScore}</strong> of 7. Enter glucose and IgG to resolve it.
+                </>
+              )}
+              {iggValue !== undefined && iggValue < 400 && (
+                <> Complete failure of passive transfer (IgG {iggValue} mg/dL).</>
+              )}
+              {iggValue !== undefined && iggValue >= 400 && iggValue <= 800 && (
+                <> Partial failure of passive transfer (IgG {iggValue} mg/dL).</>
+              )}
             </p>
           </div>
 
