@@ -1,6 +1,6 @@
 import type { FlowsheetEntry, BiomarkerEvaluator } from '../types';
 
-export function evaluateBiomarkers(entry: FlowsheetEntry): BiomarkerEvaluator {
+export function evaluateBiomarkers(entry: Partial<FlowsheetEntry>): BiomarkerEvaluator {
   const result: BiomarkerEvaluator = {};
 
   // SAA Evaluation

@@ -1311,7 +1311,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "doseDefault": 0.1,
     "doseUnit": "IU/kg",
     "concentration": 100.0,
-    "concentrationUnit": "mg/mL",
+    "concentrationUnit": "IU/mL",
     "route": [
       "IV",
       "SC"
@@ -1358,7 +1358,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "doseDefault": 0.15,
     "doseUnit": "IU/kg",
     "concentration": 100.0,
-    "concentrationUnit": "mg/mL",
+    "concentrationUnit": "IU/mL",
     "route": [
       "SC"
     ],
@@ -2895,7 +2895,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "doseDefault": 10.0,
     "doseUnit": "IU (total)",
     "concentration": 20.0,
-    "concentrationUnit": "mg/mL",
+    "concentrationUnit": "IU/mL",
     "route": [
       "IV",
       "IM"
@@ -4262,7 +4262,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "doseMax": 44000,
     "doseDefault": 22000,
     "doseUnit": "IU/kg",
-    "concentration": 300000,
+    "concentration": 0,
     "concentrationUnit": "IU/mL",
     "route": [
       "IV"
@@ -4270,7 +4270,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "frequency": "q6h",
     "indications": [],
     "cautions": "",
-    "notes": "source: memory_standard_reference",
+    "notes": "Supplied as a lyophilised powder — the bottle strength depends on the reconstitution volume, so enter the concentration you made up (e.g. a 5 million IU vial in 5 mL is 1,000,000 IU/mL).",
     "isCRI": false,
     "patientType": "ADULT"
   },

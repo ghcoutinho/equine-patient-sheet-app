@@ -1,5 +1,11 @@
-import React from 'react';
-import { ViewTab } from '../types';
+import React, { useState } from 'react';
+import type { ViewTab } from '../types';
+import {
+  MOBILE_PRIMARY,
+  NAV_ORDER,
+  NAV_GROUP_LABEL,
+  itemsInGroup,
+} from '../data/navigation';
 
 interface MobileBottomNavProps {
   currentTab: ViewTab;
@@ -7,82 +13,118 @@ interface MobileBottomNavProps {
   hasCriticalAlert?: boolean;
 }
 
+/**
+ * Tablet and phone navigation. Four primary destinations plus a sheet holding
+ * everything else, so no tab is unreachable below the desktop breakpoint —
+ * previously five of the ten views simply had no route on small screens.
+ * Labels come from the shared nav list, so a tab is called the same thing here
+ * as it is in the side rail.
+ */
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentTab,
   setCurrentTab,
-  hasCriticalAlert = true,
+  hasCriticalAlert = false,
 }) => {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const overflowActive = !MOBILE_PRIMARY.some((i) => i.id === currentTab);
+
+  const go = (tab: ViewTab) => {
+    setCurrentTab(tab);
+    setSheetOpen(false);
+  };
+
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-2 py-2 bg-[#f8f9ff] dark:bg-[#213145] border-t border-[#E2E8F0] dark:border-[#c4c5d7] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] rounded-t-xl select-none">
-      <button
-        onClick={() => setCurrentTab('flowsheet')}
-        className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors ${
-          currentTab === 'flowsheet'
-            ? 'text-[#0037b0] font-bold'
-            : 'text-[#434655] hover:bg-[#e5eeff]'
-        }`}
-      >
-        <span className="material-symbols-outlined text-xl">history</span>
-        <span className="font-label-caps text-[10px] mt-0.5">Timeline</span>
-      </button>
+    <>
+      {sheetOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/30"
+          onClick={() => setSheetOpen(false)}
+          aria-hidden
+        />
+      )}
 
-      <button
-        onClick={() => setCurrentTab('assess')}
-        className={`flex flex-col items-center justify-center rounded-full px-3.5 py-1 transition-transform active:scale-95 shadow-md ${
-          currentTab === 'assess'
-            ? 'bg-[#8b4ef7] text-white'
-            : 'bg-[#e5eeff] text-[#0037b0]'
-        }`}
-      >
-        <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-          add_box
-        </span>
-        <span className="font-label-caps text-[10px] font-bold mt-0.5">Assess</span>
-      </button>
-
-      <button
-        onClick={() => setCurrentTab('intelligence')}
-        className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors relative ${
-          currentTab === 'intelligence'
-            ? 'text-[#B91C1C] font-bold'
-            : 'text-[#434655] hover:bg-[#e5eeff]'
-        }`}
-      >
-        <span 
-          className={`material-symbols-outlined text-xl ${hasCriticalAlert ? 'text-[#B91C1C]' : ''}`} 
-          style={{ fontVariationSettings: "'FILL' 1" }}
+      {sheetOpen && (
+        <div
+          role="dialog"
+          aria-label="All views"
+          className="lg:hidden fixed bottom-[64px] left-2 right-2 z-50 bg-white border border-[#E2E8F0] rounded-xl shadow-xl max-h-[70vh] overflow-y-auto p-3"
         >
-          warning
-        </span>
-        <span className="font-label-caps text-[10px] mt-0.5">Alerts</span>
-        {hasCriticalAlert && (
-          <span className="absolute top-1 right-2 w-2 h-2 bg-[#B91C1C] rounded-full animate-pulse-critical"></span>
-        )}
-      </button>
+          {NAV_ORDER.map((group) => (
+            <div key={group} className="mb-3 last:mb-0">
+              <h3 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase px-1 pb-1">
+                {NAV_GROUP_LABEL[group]}
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {itemsInGroup(group).map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => go(item.id)}
+                    className={`flex items-center gap-2 px-2.5 py-2 rounded text-left transition-colors ${
+                      currentTab === item.id
+                        ? 'bg-[#1d4ed8] text-white'
+                        : 'bg-[#f8f9ff] text-[#434655] hover:bg-[#e5eeff]'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg flex-shrink-0">
+                      {item.icon}
+                    </span>
+                    <span className="font-label-caps text-[11px] leading-tight">
+                      {item.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-      <button
-        onClick={() => setCurrentTab('calculator')}
-        className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors ${
-          currentTab === 'calculator'
-            ? 'text-[#0037b0] font-bold'
-            : 'text-[#434655] hover:bg-[#e5eeff]'
-        }`}
+      <nav
+        aria-label="Main navigation"
+        className="lg:hidden fixed bottom-0 left-0 w-full z-50 flex justify-around items-stretch px-1 py-1.5 bg-[#f8f9ff] border-t border-[#E2E8F0] shadow-[0_-4px_12px_rgba(0,0,0,0.08)] select-none"
       >
-        <span className="material-symbols-outlined text-xl">vaccines</span>
-        <span className="font-label-caps text-[10px] mt-0.5">Dose Calc</span>
-      </button>
+        {MOBILE_PRIMARY.map((item) => {
+          const active = currentTab === item.id;
+          const flagged = item.id === 'intelligence' && hasCriticalAlert;
+          return (
+            <button
+              key={item.id}
+              onClick={() => go(item.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex flex-col items-center justify-center flex-1 p-1 rounded-lg transition-colors ${
+                active ? 'text-[#0037b0] font-bold bg-[#e5eeff]' : 'text-[#434655]'
+              }`}
+            >
+              <span
+                className={`material-symbols-outlined text-xl ${flagged ? 'text-[#B91C1C]' : ''}`}
+                style={item.filled ? { fontVariationSettings: "'FILL' 1" } : undefined}
+              >
+                {item.icon}
+              </span>
+              <span className="font-label-caps text-[10px] mt-0.5">{item.shortLabel}</span>
+              {flagged && (
+                <span className="absolute top-0.5 right-3 w-2 h-2 bg-[#B91C1C] rounded-full animate-pulse-critical" />
+              )}
+            </button>
+          );
+        })}
 
-      <button
-        onClick={() => setCurrentTab('dashboard')}
-        className={`flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors ${
-          currentTab === 'dashboard'
-            ? 'text-[#0037b0] font-bold'
-            : 'text-[#434655] hover:bg-[#e5eeff]'
-        }`}
-      >
-        <span className="material-symbols-outlined text-xl">grid_view</span>
-        <span className="font-label-caps text-[10px] mt-0.5">Ward</span>
-      </button>
-    </nav>
+        <button
+          onClick={() => setSheetOpen((v) => !v)}
+          aria-expanded={sheetOpen}
+          aria-label="All views"
+          className={`flex flex-col items-center justify-center flex-1 p-1 rounded-lg transition-colors ${
+            sheetOpen || overflowActive
+              ? 'text-[#0037b0] font-bold bg-[#e5eeff]'
+              : 'text-[#434655]'
+          }`}
+        >
+          <span className="material-symbols-outlined text-xl">
+            {sheetOpen ? 'close' : 'more_horiz'}
+          </span>
+          <span className="font-label-caps text-[10px] mt-0.5">More</span>
+        </button>
+      </nav>
+    </>
   );
 };

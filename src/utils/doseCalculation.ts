@@ -59,18 +59,36 @@ export function parseDoseUnit(doseUnit: string): DoseUnitSpec {
 /** Volume units the dose may already be expressed in. */
 const VOLUME_UNITS: Record<string, string> = { ml: 'mL', l: 'L' };
 
-/** Factor converting `unit` into milligrams. null when it is not a mass at all. */
-function toMilligrams(unit: string | undefined): number | null {
-  switch ((unit || '').toLowerCase()) {
-    case 'mg':
-      return 1;
-    case 'mcg':
-      return 0.001;
-    case 'g':
-      return 1000;
-    default:
-      return null; // IU, mU, mL, capsules — not convertible against mg/mL
-  }
+/**
+ * Unit families that can be divided into one another. A dose in IU over a
+ * concentration in IU/mL is a perfectly good volume; it is only mixing families
+ * — IU over mg/mL — that is meaningless.
+ */
+type UnitFamily = 'mass' | 'activity';
+
+const UNIT_FAMILY: Record<string, { family: UnitFamily; factor: number }> = {
+  // mass, normalised to milligrams
+  g: { family: 'mass', factor: 1000 },
+  mg: { family: 'mass', factor: 1 },
+  mcg: { family: 'mass', factor: 0.001 },
+  ug: { family: 'mass', factor: 0.001 },
+  // biological activity, normalised to international units
+  iu: { family: 'activity', factor: 1 },
+  u: { family: 'activity', factor: 1 },
+  miu: { family: 'activity', factor: 0.001 },
+  mu: { family: 'activity', factor: 0.001 },
+};
+
+const lookupUnit = (unit: string | undefined) => UNIT_FAMILY[(unit || '').toLowerCase()];
+
+/** Numerator of a concentration string such as "IU/mL", "mg/mL" or "%". */
+function concentrationNumerator(concentrationUnit: string | undefined): string | undefined {
+  const u = (concentrationUnit || '').trim();
+  if (!u) return undefined;
+  // A percentage solution is g per 100 mL, i.e. 10 mg/mL per percentage point.
+  if (u === '%') return '%';
+  const m = u.match(/^([A-Za-z]+)\s*\/\s*m?L$/i);
+  return m ? m[1] : undefined;
 }
 
 export type VolumeBlockedReason =
@@ -96,8 +114,31 @@ export interface DoseInput {
   weightKg: number;
   dose: number;
   doseUnit: string;
-  /** mg/mL. 0 or undefined means the formulary has no concentration on file. */
+  /** 0 or undefined means no concentration is on file. */
   concentration?: number;
+  /**
+   * Unit of the concentration, e.g. "mg/mL", "IU/mL", "%". Defaults to the
+   * conventional partner for the dose unit, so an IU/kg drug assumes IU/mL
+   * rather than failing as a unit mismatch.
+   */
+  concentrationUnit?: string;
+}
+
+/** The concentration unit a bottle of this drug conventionally carries. */
+export function defaultConcentrationUnit(doseUnit: string): string {
+  const spec = parseDoseUnit(doseUnit);
+  const f = lookupUnit(spec.massUnit);
+  if (f?.family === 'activity') return `${spec.massUnit}/mL`;
+  if ((spec.massUnit || '').toLowerCase() === 'mcg') return 'mg/mL';
+  return 'mg/mL';
+}
+
+/** Concentration units offered for a given dose unit. */
+export function concentrationUnitOptions(doseUnit: string): string[] {
+  const spec = parseDoseUnit(doseUnit);
+  const f = lookupUnit(spec.massUnit);
+  if (f?.family === 'activity') return ['IU/mL', 'mU/mL'];
+  return ['mg/mL', 'mcg/mL', 'g/mL', '%'];
 }
 
 const round = (n: number): number => {
@@ -147,13 +188,36 @@ export function computeDose(input: DoseInput): DoseResult {
     return { ...base, volumeBlocked: 'no-concentration' };
   }
 
-  const mgFactor = toMilligrams(spec.massUnit);
-  if (mgFactor === null) {
+  const doseUnitInfo = lookupUnit(spec.massUnit);
+  const concUnitRaw = input.concentrationUnit || defaultConcentrationUnit(input.doseUnit);
+  const concNumerator = concentrationNumerator(concUnitRaw);
+
+  if (!doseUnitInfo || !concNumerator) {
+    return { ...base, volumeBlocked: 'unit-mismatch' };
+  }
+
+  // "%" is g per 100 mL, so 1% == 10 mg/mL. Only meaningful for mass doses.
+  const concInfo =
+    concNumerator === '%'
+      ? doseUnitInfo.family === 'mass'
+        ? { family: 'mass' as UnitFamily, factor: 1, perMl: concentration * 10 }
+        : null
+      : (() => {
+          const info = lookupUnit(concNumerator);
+          return info ? { ...info, perMl: concentration } : null;
+        })();
+
+  if (!concInfo || concInfo.family !== doseUnitInfo.family) {
     // e.g. an IU/kg dose against a mg/mL concentration.
     return { ...base, volumeBlocked: 'unit-mismatch' };
   }
 
-  const volume = round((amount * mgFactor) / concentration);
+  // Normalise both sides to the family's base unit before dividing.
+  const amountBase = amount * doseUnitInfo.factor;
+  const perMlBase = concInfo.perMl * concInfo.factor;
+  if (!(perMlBase > 0)) return { ...base, volumeBlocked: 'no-concentration' };
+
+  const volume = round(amountBase / perMlBase);
   const volumeUnit = `mL${rateSuffix}`;
 
   return {

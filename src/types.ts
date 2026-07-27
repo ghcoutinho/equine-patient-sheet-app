@@ -28,16 +28,17 @@ export type BodySystem =
   | 'HAEMOLYMPHATIC'
   | 'ENDOCRINE';
 
-export type ViewTab = 
-  | 'overview' 
-  | 'dashboard' 
-  | 'flowsheet' 
-  | 'intelligence' 
-  | 'assess' 
-  | 'scores' 
+export type ViewTab =
+  | 'overview'
+  | 'dashboard'
+  | 'flowsheet'
+  | 'intelligence'
+  | 'assess'
+  | 'scores'
   | 'calculator'
   | 'ranges'
-  | 'patients';
+  | 'patients'
+  | 'meds';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
@@ -166,6 +167,60 @@ export interface ScheduledTask {
 }
 
 /**
+ * What kind of thing is running on the patient. Fluids and CRIs are continuous
+ * and are followed by rate and elapsed time; intermittent medications are
+ * followed by interval and next-dose time. The distinction changes what the
+ * ward needs to see, so it is modelled rather than inferred from the drug name.
+ */
+export type TreatmentKind = 'MEDICATION' | 'FLUID' | 'CRI';
+
+/** A single recorded administration of an intermittent medication. */
+export interface Administration {
+  id: string;
+  /** ISO timestamp of when it was actually given. */
+  at: string;
+  by?: string;
+  /** What was actually given, e.g. "11.44 mL". */
+  amountText?: string;
+  note?: string;
+}
+
+/**
+ * A drug, fluid or infusion on the patient's treatment sheet.
+ *
+ * `startedAt` is the time of application for a one-off, or the time the line
+ * was started for anything continuous. A treatment stays on the sheet after it
+ * ends — `stoppedAt` closes it rather than deleting it, so the record of what
+ * ran and for how long survives, which is also what a future charge sheet will
+ * be built from.
+ */
+export interface Treatment {
+  id: string;
+  kind: TreatmentKind;
+  drug: string;
+  /** Links back to the formulary entry the dose came from, when there is one. */
+  formularyId?: string;
+  /** Dose as prescribed, e.g. "1.1 mg/kg". */
+  doseText?: string;
+  /** Amount per administration derived by the calculator, e.g. "11.44 mL". */
+  amountText?: string;
+  route?: string;
+  /** Hours between doses. Absent for continuous lines and single doses. */
+  intervalHours?: number;
+  /** Rate for continuous lines, e.g. "2 mL/kg/hr" or "0.05 mg/kg/min". */
+  rateText?: string;
+  /** ISO timestamp: time of application, or time the infusion was started. */
+  startedAt: string;
+  /** ISO timestamp; set when the treatment is discontinued. */
+  stoppedAt?: string;
+  stoppedBy?: string;
+  stopReason?: string;
+  prescribedBy?: string;
+  administrations: Administration[];
+  note?: string;
+}
+
+/**
  * Thresholds that escalate a finding to a "call the surgeon" alert.
  * Defaults follow the Colic Monitoring Tool; the attending clinician can
  * override them per patient.
@@ -232,6 +287,8 @@ export interface Patient {
   bodySystems?: BodySystem[];
   attendingClinician?: string;
   schedule?: ScheduledTask[];
+  /** Drugs, fluids and infusions, open and closed. */
+  treatments?: Treatment[];
   
   // Merged from old patient
   category: PatientCategory;
@@ -328,7 +385,14 @@ export interface FlowsheetEntry {
   heartRate?: number;
   respiratoryRate?: number;
   temperature?: number;
-  mucousMembranes?: 'PINK' | 'PALE' | 'INJECTED' | 'CYANOTIC' | 'JAUNDICED' | 'TOXIC_RING';
+  mucousMembranes?:
+    | 'PINK'
+    | 'PALE'
+    | 'INJECTED'
+    | 'CYANOTIC'
+    | 'JAUNDICED'
+    | 'TOXIC_RING'
+    | 'MUDDY';
   capillaryRefillTime?: number;
   
   // Lab values

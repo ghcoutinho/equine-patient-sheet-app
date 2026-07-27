@@ -5,6 +5,8 @@ import {
   computeDose,
   parseDoseUnit,
   VOLUME_BLOCKED_MESSAGE,
+  defaultConcentrationUnit,
+  concentrationUnitOptions,
 } from '../../utils/doseCalculation';
 
 interface DoseCalculatorViewProps {
@@ -25,6 +27,7 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [doseOverride, setDoseOverride] = useState<number | null>(null);
   const [concentrationOverride, setConcentrationOverride] = useState<string>('');
+  const [concUnitOverride, setConcUnitOverride] = useState<string>('');
   const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
 
   const isFoal = patient.isFoal || patient.category === 'NEONATAL_FOAL';
@@ -35,12 +38,15 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
     return ['ALL', ...Array.from(set).sort()];
   }, []);
 
-  const results = useMemo(() => {
+  // The formulary is filtered to the patient's age class by default, because a
+  // foal dose of an adult drug is usually wrong. But hiding entries silently
+  // made the formulary look half its size, so anything excluded is counted and
+  // offered rather than dropped.
+  const [showOtherAgeClass, setShowOtherAgeClass] = useState(false);
+
+  const { results, hiddenByAgeClass } = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return EXPANDED_FORMULARY.filter((d) => {
-      const matchesPatient =
-        d.patientType === 'BOTH' || d.patientType === (isFoal ? 'FOAL' : 'ADULT');
-      if (!matchesPatient) return false;
+    const matchesQuery = (d: (typeof EXPANDED_FORMULARY)[number]) => {
       if (category !== 'ALL' && !(d.categories || []).includes(category)) return false;
       if (!q) return true;
       return (
@@ -48,8 +54,19 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
         (d.brandName || '').toLowerCase().includes(q) ||
         (d.indications || []).some((i) => i.toLowerCase().includes(q))
       );
-    });
-  }, [search, category, isFoal]);
+    };
+    const forThisPatient = (d: (typeof EXPANDED_FORMULARY)[number]) =>
+      d.patientType === 'BOTH' || d.patientType === (isFoal ? 'FOAL' : 'ADULT');
+
+    const matching = EXPANDED_FORMULARY.filter(matchesQuery);
+    const inClass = matching.filter(forThisPatient);
+    const outOfClass = matching.filter((d) => !forThisPatient(d));
+
+    return {
+      results: showOtherAgeClass ? [...inClass, ...outOfClass] : inClass,
+      hiddenByAgeClass: showOtherAgeClass ? 0 : outOfClass.length,
+    };
+  }, [search, category, isFoal, showOtherAgeClass]);
 
   const selected = selectedIndex !== null ? results[selectedIndex] : undefined;
 
@@ -57,6 +74,7 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
     setSelectedIndex(index);
     setDoseOverride(null);
     setConcentrationOverride('');
+    setConcUnitOverride('');
   };
 
   const dose = selected ? doseOverride ?? selected.doseDefault : 0;
@@ -66,12 +84,22 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
       : selected.concentration
     : 0;
 
+  // The unit the bottle is labelled in. Falls back to the formulary's own unit,
+  // then to the conventional partner for the dose unit — so an IU/kg drug
+  // assumes IU/mL instead of failing as a unit mismatch.
+  const concUnit = selected
+    ? concUnitOverride ||
+      selected.concentrationUnit ||
+      defaultConcentrationUnit(selected.doseUnit)
+    : '';
+
   const result = selected
     ? computeDose({
         weightKg,
         dose,
         doseUnit: selected.doseUnit,
         concentration: Number.isFinite(concentration) ? concentration : 0,
+        concentrationUnit: concUnit,
       })
     : null;
 
@@ -184,8 +212,25 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Results */}
         <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm overflow-hidden">
-          <div className="px-4 py-2 bg-[#f8f9ff] border-b border-[#E2E8F0] font-label-caps text-xs text-[#434655]">
-            {results.length} result{results.length === 1 ? '' : 's'}
+          <div className="px-4 py-2 bg-[#f8f9ff] border-b border-[#E2E8F0] font-label-caps text-xs text-[#434655] flex flex-wrap items-center justify-between gap-2">
+            <span>
+              {results.length} result{results.length === 1 ? '' : 's'}
+              <span className="normal-case tracking-normal text-[#747686]">
+                {' '}
+                · {isFoal ? 'foal' : 'adult'} dosing
+              </span>
+            </span>
+            {(hiddenByAgeClass > 0 || showOtherAgeClass) && (
+              <button
+                type="button"
+                onClick={() => setShowOtherAgeClass((v) => !v)}
+                className="text-[#0037b0] hover:underline normal-case tracking-normal"
+              >
+                {showOtherAgeClass
+                  ? `Hide ${isFoal ? 'adult' : 'foal'}-only entries`
+                  : `${hiddenByAgeClass} more labelled ${isFoal ? 'adult' : 'foal'}-only — show`}
+              </button>
+            )}
           </div>
           <ul className="max-h-[560px] overflow-y-auto divide-y divide-[#E2E8F0]">
             {results.length === 0 && (
@@ -316,18 +361,37 @@ export const DoseCalculatorView: React.FC<DoseCalculatorViewProps> = ({
             {/* Concentration */}
             <div>
               <label className="font-label-caps text-xs text-[#434655] block mb-1" htmlFor="conc">
-                Concentration (mg/mL)
+                Concentration on the bottle
               </label>
-              <input
-                id="conc"
-                type="number"
-                step="0.1"
-                value={concentrationOverride !== '' ? concentrationOverride : selected.concentration || ''}
-                onChange={(e) => setConcentrationOverride(e.target.value)}
-                placeholder="Not on file — enter what is on the bottle"
-                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:ring-2 focus:outline-none no-spinner"
-                style={{ ['--tw-ring-color' as string]: accent }}
-              />
+              <div className="flex gap-2">
+                <input
+                  id="conc"
+                  type="number"
+                  step="0.1"
+                  value={concentrationOverride !== '' ? concentrationOverride : selected.concentration || ''}
+                  onChange={(e) => setConcentrationOverride(e.target.value)}
+                  placeholder="Not on file — enter what is on the bottle"
+                  className="flex-1 min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:ring-2 focus:outline-none no-spinner"
+                  style={{ ['--tw-ring-color' as string]: accent }}
+                />
+                <select
+                  aria-label="Concentration unit"
+                  value={concUnit}
+                  onChange={(e) => setConcUnitOverride(e.target.value)}
+                  className="min-h-[44px] px-2 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:outline-none"
+                  style={{ ['--tw-ring-color' as string]: accent }}
+                >
+                  {Array.from(
+                    new Set([concUnit, ...concentrationUnitOptions(selected.doseUnit)]),
+                  )
+                    .filter(Boolean)
+                    .map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                </select>
+              </div>
               {!selected.concentration && (
                 <p className="font-derived-value text-[11px] text-[#B45309] mt-1">
                   No concentration in the formulary for this drug — enter the product

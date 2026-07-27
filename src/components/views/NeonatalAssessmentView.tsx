@@ -347,26 +347,41 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
                 <span className="font-label-caps text-xs text-[#434655]">
                   Foal Survival Track
                 </span>
-                <span className="font-derived-value text-xs text-[#B91C1C] font-bold">
-                  Sepsis Threshold Met
+                <span className="font-derived-value text-xs text-[#434655]">
+                  {confirmedScore === maxPendingScore
+                    ? `${confirmedScore} of 7`
+                    : `${confirmedScore}–${maxPendingScore} of 7`}
                 </span>
               </div>
 
-              <div className="w-full h-10 bg-[#e5eeff] rounded-full overflow-hidden flex relative border border-[#E2E8F0] shadow-inner">
-                {/* Low Risk 0-3 */}
-                <div className="h-full bg-[#ECFDF5] border-r border-[#E2E8F0]" style={{ width: '30%' }} />
-                {/* Confirmed Score */}
-                <div className="h-full bg-[#6D28D9] flex items-center justify-end pr-2 text-white font-derived-value font-bold text-xs" style={{ width: '20%' }}>
-                  {confirmedScore}
+              {/*
+                Widths are computed from the score. They were previously fixed
+                at 30/20/30 regardless of the patient, so the bar drew the same
+                picture for a foal scoring 1 and a foal scoring 6.
+              */}
+              <div
+                className="w-full h-10 bg-[#e5eeff] rounded-full overflow-hidden flex relative border border-[#E2E8F0] shadow-inner"
+                role="img"
+                aria-label={`Foal survival score ${confirmedScore} confirmed, up to ${maxPendingScore} of a possible 7`}
+              >
+                <div
+                  className="h-full bg-[#6D28D9] flex items-center justify-end pr-2 text-white font-derived-value font-bold text-xs transition-all"
+                  style={{ width: `${(confirmedScore / 7) * 100}%` }}
+                >
+                  {confirmedScore > 0 && confirmedScore}
                 </div>
-                {/* Pending Band */}
-                <div className="h-full bg-[#6D28D9]/20 rail-track border-r-2 border-dashed border-[#6D28D9]" style={{ width: '30%' }} />
+                {maxPendingScore > confirmedScore && (
+                  <div
+                    className="h-full bg-[#6D28D9]/20 rail-track border-r-2 border-dashed border-[#6D28D9] transition-all"
+                    style={{ width: `${((maxPendingScore - confirmedScore) / 7) * 100}%` }}
+                    title="Still possible from results that have not been entered"
+                  />
+                )}
               </div>
 
               <div className="flex justify-between font-label-caps text-[10px] text-[#434655]">
-                <span>0 · ~3% survival</span>
-                <span className="text-[#B45309]">5 · survival threshold</span>
-                <span className="text-[#047857]">7 · ~97% survival</span>
+                <span>0</span>
+                <span>7 favourable findings</span>
               </div>
             </div>
 

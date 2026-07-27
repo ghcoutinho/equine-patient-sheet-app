@@ -1,109 +1,231 @@
-import React from 'react';
-import { Patient } from '../../types';
+import React, { useMemo } from 'react';
+import type { Patient, ViewTab, AssessmentSeverity } from '../../types';
 import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
+import { columnToEntry, buildPanels, panelHasData, type ScorePanel } from '../../utils/intelligence';
+import { getPrognosticFlags } from '../../utils/prognosis';
+import { evaluateBiomarkers } from '../../utils/biomarkerEvaluator';
+import {
+  orderedTreatments,
+  clockTime,
+  TREATMENT_STATE_STYLE,
+} from '../../utils/treatments';
+import { computeDue, DUE_STYLES } from '../../utils/schedule';
 
 interface LiveIntelligenceViewProps {
   patient: Patient;
+  onNavigate: (tab: ViewTab) => void;
   onOpenNewAssessment: () => void;
 }
 
+const SEVERITY_ACCENT: Record<AssessmentSeverity, string> = {
+  normal: '#047857',
+  watch: '#B45309',
+  warning: '#C2410C',
+  critical: '#B91C1C',
+};
+
+const SEVERITY_TINT: Record<AssessmentSeverity, string> = {
+  normal: 'bg-[#ECFDF5] border-[#047857]/30',
+  watch: 'bg-[#FFFBEB] border-[#B45309]/30',
+  warning: 'bg-[#FFF7ED] border-[#C2410C]/30',
+  critical: 'bg-[#FEF2F2] border-[#B91C1C]/40',
+};
+
+/**
+ * Clinical intelligence for the active patient.
+ *
+ * Everything on this screen is computed from the most recent charted round.
+ * The previous version showed a hardcoded "+2 Heart Rate / +1 Lactate" ledger,
+ * a score track drawn at fixed percentages and a sepsis meter pinned at 65% —
+ * none of which were derived from the patient. Where an input has not been
+ * charted, the panel says so and widens its range instead of scoring it.
+ */
 export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
   patient,
+  onNavigate,
   onOpenNewAssessment,
 }) => {
+  const now = useMemo(() => new Date(), []);
   const latest = latestColumn(patient.flowsheetHistory);
   const triggers = evaluateCallSurgeonTriggers(latest);
+  const entry = useMemo(() => columnToEntry(patient, latest), [patient, latest]);
+  const panels = useMemo(() => buildPanels(patient, entry), [patient, entry]);
+  const flags = useMemo(() => getPrognosticFlags(entry), [entry]);
+  const biomarkers = useMemo(() => evaluateBiomarkers(entry), [entry]);
+  // Everything still open, urgent first. Filtering to only overdue orders hid
+  // running lines entirely, which read as "nothing is on this patient".
+  const openTreatments = orderedTreatments(patient.treatments, now).filter(
+    (t) => t.state !== 'STOPPED',
+  );
+  const dueTasks = computeDue(patient.schedule, now).filter(
+    (d) => d.state === 'OVERDUE' || d.state === 'DUE_NOW',
+  );
+
+  const biomarkerRows = [
+    biomarkers.saa && { label: 'Serum amyloid A', ...biomarkers.saa, unit: 'mg/L' },
+    biomarkers.ngal && { label: 'NGAL', ...biomarkers.ngal, unit: 'ng/mL' },
+    biomarkers.rpr && { label: 'RDW : platelet ratio', ...biomarkers.rpr, unit: '' },
+  ].filter(Boolean) as {
+    label: string;
+    value: number;
+    interpretation: string;
+    unit: string;
+  }[];
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row overflow-y-auto bg-[#F8FAFC]">
-      {/* Left Dummy/Context Pane */}
-      <main className="flex-1 p-6 lg:p-8 hidden md:flex flex-col justify-center items-center border-r border-[#E2E8F0] bg-[#F8FAFC]">
-        <div className="max-w-md mx-auto text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-[#e5eeff] text-[#0037b0] flex items-center justify-center mx-auto shadow-sm">
-            <span className="material-symbols-outlined text-3xl">edit_document</span>
+    <div className="flex-1 flex flex-col xl:flex-row overflow-y-auto bg-[#F8FAFC]">
+      {/* Left: the computed picture */}
+      <main className="flex-1 p-4 lg:p-6 border-r border-[#E2E8F0] min-w-0">
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
+          <div>
+            <h1 className="font-headline text-2xl font-bold text-[#0b1c30]">
+              Clinical Intelligence
+            </h1>
+            <p className="font-body-md text-sm text-[#434655] mt-0.5">
+              {patient.name}
+              {patient.diagnosis ? ` · ${patient.diagnosis}` : ''} ·{' '}
+              {latest ? (
+                <>
+                  computed from the round at{' '}
+                  <span className="font-bold text-[#0b1c30]">{latest.time}</span>
+                  {latest.recordedBy ? ` by ${latest.recordedBy}` : ''}
+                </>
+              ) : (
+                'no round charted yet'
+              )}
+            </p>
           </div>
-          <h2 className="font-headline text-xl text-[#0b1c30]">
-            Clinical Intelligence Rail
-          </h2>
-          <p className="font-body-md text-sm text-[#434655]">
-            Focus is on active patient real-time decision support, SIRS alerts, and colic assessment scoring for <span className="font-bold text-[#0037b0]">{patient.name}</span>.
-          </p>
           <button
             onClick={onOpenNewAssessment}
-            className="mt-4 px-4 py-2 bg-[#0037b0] text-white rounded text-xs font-label-caps hover:bg-[#1d4ed8] transition shadow-sm"
+            className="px-3 py-1.5 bg-[#0037b0] text-white rounded text-xs font-label-caps hover:bg-[#1d4ed8] shadow-sm flex items-center gap-1"
           >
-            Log New Clinical Assessment
+            <span className="material-symbols-outlined text-sm">add</span>
+            New round
           </button>
         </div>
+
+        {!latest ? (
+          <div className="bg-white border border-dashed border-[#c4c5d7] rounded-lg p-10 text-center">
+            <span className="material-symbols-outlined text-4xl text-[#c4c5d7]">
+              monitoring
+            </span>
+            <p className="font-body-md text-sm text-[#434655] mt-2 max-w-sm mx-auto">
+              Nothing has been charted for {patient.name}, so there is nothing to compute.
+              Record a round and every panel here fills in.
+            </p>
+            <button
+              onClick={() => onNavigate('assess')}
+              className="mt-3 px-3 py-1.5 text-xs font-label-caps bg-[#0037b0] text-white rounded hover:bg-[#1d4ed8]"
+            >
+              Go to Vitals &amp; Round
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {panels.map((p) => (
+              <PanelCard key={p.id} panel={p} onChart={() => onNavigate('assess')} />
+            ))}
+
+            {/* Published admission cut-offs, applied to what is charted */}
+            <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4">
+              <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-1">
+                Admission risk cut-offs
+              </h2>
+              <p className="font-derived-value text-xs text-[#747686] mb-3">
+                Individual published thresholds (Bottegaro 2024, McGovern 2025), each
+                evaluated on its own — not summed into a score.
+              </p>
+              {flags.length === 0 ? (
+                <p className="font-derived-value text-xs text-[#434655] bg-[#ECFDF5] border border-[#047857]/30 rounded p-2.5">
+                  None of the charted parameters cross a published high-risk cut-off.
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {flags.map((f) => (
+                    <li
+                      key={f}
+                      className="flex items-start gap-2 font-derived-value text-xs text-[#0b1c30] bg-[#FFF7ED] border border-[#C2410C]/30 rounded p-2.5"
+                    >
+                      <span className="material-symbols-outlined text-sm text-[#C2410C]">
+                        priority_high
+                      </span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* Biomarkers only appear once one has been entered */}
+            {biomarkerRows.length > 0 && (
+              <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4">
+                <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-3">
+                  Inflammatory biomarkers
+                </h2>
+                <ul className="divide-y divide-[#E2E8F0]">
+                  {biomarkerRows.map((b) => (
+                    <li key={b.label} className="flex justify-between items-center py-2">
+                      <span className="font-body-md text-sm text-[#0b1c30]">{b.label}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-derived-value text-sm font-bold text-[#0b1c30]">
+                          {b.value} {b.unit}
+                        </span>
+                        <span
+                          className={`font-label-caps text-[10px] px-1.5 py-0.5 rounded border ${
+                            b.interpretation === 'NORMAL'
+                              ? 'bg-[#ECFDF5] text-[#047857] border-[#047857]/30'
+                              : 'bg-[#FEF2F2] text-[#B91C1C] border-[#B91C1C]/30'
+                          }`}
+                        >
+                          {b.interpretation.replace(/_/g, ' ')}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        )}
       </main>
 
-      {/* Right Live Intelligence Rail */}
-      <aside className="w-full md:w-[420px] lg:w-[460px] bg-white border-l border-[#E2E8F0] flex flex-col p-6 space-y-8 shadow-sm">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-3">
-          <h3 className="font-headline text-xl font-bold text-[#0b1c30]">
-            Live Intelligence
-          </h3>
-          <span className="material-symbols-outlined text-[#434655]">monitoring</span>
+      {/* Right: what needs doing now */}
+      <aside className="w-full xl:w-[400px] bg-white border-l border-[#E2E8F0] flex flex-col p-4 lg:p-5 space-y-5 flex-shrink-0">
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+          <h2 className="font-headline text-lg font-bold text-[#0b1c30]">Right now</h2>
+          <span className="font-derived-value text-xs text-[#747686]">{clockTime(now)}</span>
         </div>
 
-        {/* Alerts & Notifications */}
-        <section className="relative space-y-3">
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#6D28D9] rounded-r" />
-          <div className="pl-4">
-            <h4 className="font-label-caps text-xs text-[#434655] uppercase tracking-wider mb-3">
-              Alerts & Notifications
-            </h4>
-
-            {/* Critical Alert */}
-            {patient.sirsCriteriaMet && (
-              <div className="bg-[#B91C1C] text-white rounded border border-[#B91C1C] p-3.5 shadow-md mb-2 animate-pulse-critical relative overflow-hidden">
-                <div className="flex items-start justify-between relative z-10">
-                  <div className="flex gap-3">
-                    <span className="material-symbols-outlined mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>
-                      warning
-                    </span>
-                    <div>
-                      <div className="font-body-md font-bold leading-tight text-sm">
-                        SIRS Criteria Met
-                      </div>
-                      <div className="font-derived-value text-xs opacity-90 mt-1">
-                        {patient.sirsDescription || 'HR > 60 & RR > 30 detected.'}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded font-label-caps whitespace-nowrap">
-                    [SIRS 2016]
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Call-surgeon triggers, computed from the latest charted round */}
-            {triggers.length === 0 ? (
-              <div className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-3 text-xs text-[#434655] font-derived-value">
-                No call-surgeon triggers on the latest round
-                {latest ? ` (${latest.time})` : ' — no round charted yet'}.
-              </div>
-            ) : (
-              triggers.map((t) => (
-                <div
+        {/* Call-surgeon triggers */}
+        <section>
+          <h3 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-2">
+            Call-surgeon triggers
+          </h3>
+          {triggers.length === 0 ? (
+            <p className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 text-xs text-[#434655] font-derived-value">
+              None on the latest round
+              {latest ? ` (${latest.time})` : ' — nothing charted yet'}.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {triggers.map((t) => (
+                <li
                   key={t.id}
-                  className={`rounded p-3 mb-2 flex items-start justify-between border ${
+                  className={`rounded p-2.5 border ${
                     t.severity === 'critical'
-                      ? 'bg-[#B91C1C]/5 border-[#B91C1C]/30'
+                      ? 'bg-[#FEF2F2] border-[#B91C1C]/40'
                       : 'bg-[#FFF7ED] border-[#C2410C]/30'
                   }`}
                 >
-                  <div className="flex gap-3">
+                  <div className="flex items-start gap-2">
                     <span
-                      className={`material-symbols-outlined mt-0.5 ${
+                      className={`material-symbols-outlined text-base ${
                         t.severity === 'critical' ? 'text-[#B91C1C]' : 'text-[#C2410C]'
                       }`}
                     >
                       {t.severity === 'critical' ? 'warning' : 'info'}
                     </span>
-                    <div>
+                    <div className="min-w-0">
                       <div className="font-body-md text-sm text-[#0b1c30] font-semibold leading-tight">
                         {t.label}
                       </div>
@@ -112,156 +234,218 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] bg-white text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7] whitespace-nowrap">
-                    [Ward rule]
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* Bounded Score Track: Colic Assessment Score (CAS) */}
-        <section className="relative">
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#334155] rounded-r" />
-          <div className="pl-4">
-            <div className="flex justify-between items-end mb-3">
-              <div>
-                <h4 className="font-label-caps text-xs text-[#434655] uppercase tracking-wider mb-1">
-                  Colic Assessment Score (CAS)
-                </h4>
-                <div className="flex items-center gap-2">
-                  <span className="font-display text-2xl text-[#0b1c30]">
-                    {patient.casScoreConfirmed}-{patient.casScoreMaxPending}
-                  </span>
-                  <span className="text-[10px] bg-[#d3e4fe] text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7]">
-                    [Frontiers 2021]
-                  </span>
-                </div>
-              </div>
-
-              <span className="font-derived-value text-xs text-[#C2410C] bg-[#FFF7ED] px-2 py-1 rounded font-bold border border-[#C2410C]/20">
-                Action Range
-              </span>
-            </div>
-
-            {/* Score Track Bar */}
-            <div className="w-full h-8 bg-[#e5eeff] rounded-full overflow-hidden flex relative border border-[#E2E8F0] shadow-inner mb-2">
-              {/* Baseline 0-2 */}
-              <div className="h-full bg-[#ECFDF5] border-r border-[#E2E8F0]" style={{ width: '15%' }} />
-              {/* Confirmed Score */}
-              <div className="h-full bg-[#334155] relative" style={{ width: '15%' }}>
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 text-white font-derived-value text-xs font-bold">
-                  {patient.casScoreConfirmed}
-                </div>
-              </div>
-              {/* Uncertainty Band (diagonal hatching for pending) */}
-              <div 
-                className="h-full bg-[#334155]/20 rail-track border-r-2 border-dashed border-[#334155]" 
-                style={{ width: '40%' }} 
-              />
-              {/* Remaining Scale */}
-              <div className="h-full bg-transparent" style={{ width: '30%' }} />
-
-              {/* Threshold Markers */}
-              <div className="absolute top-0 bottom-0 left-[25%] w-px bg-[#B45309]/50 border-l border-dashed border-[#B45309]" title="Mild Threshold" />
-              <div className="absolute top-0 bottom-0 left-[55%] w-px bg-[#B91C1C]/50 border-l border-dashed border-[#B91C1C]" title="Severe Threshold" />
-            </div>
-
-            <div className="flex justify-between font-label-caps text-[10px] text-[#434655]">
-              <span>0</span>
-              <span className="text-[#B45309] font-bold">Mild (5)</span>
-              <span className="text-[#B91C1C] font-bold">Severe (11)</span>
-              <span>20</span>
-            </div>
-
-            <p className="font-derived-value text-xs text-[#434655] mt-2 bg-[#eff4ff] p-2 rounded border border-[#E2E8F0]">
-              Confirmed score is {patient.casScoreConfirmed}. Pending parameters (Calcium) could increase total to {patient.casScoreMaxPending}.
+        {/* Overdue monitoring */}
+        <section>
+          <h3 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-2">
+            Monitoring due
+          </h3>
+          {dueTasks.length === 0 ? (
+            <p className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 text-xs text-[#434655] font-derived-value">
+              Nothing on the monitoring schedule is due.
             </p>
-          </div>
+          ) : (
+            <ul className="space-y-1.5">
+              {dueTasks.map((d) => (
+                <li key={d.task.id}>
+                  <button
+                    onClick={() => onNavigate('assess')}
+                    className={`w-full text-left rounded px-2.5 py-1.5 font-label-caps text-xs flex justify-between items-center ${DUE_STYLES[d.state].chip}`}
+                  >
+                    <span>{d.task.label}</span>
+                    <span>{d.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* CAS Contribution Ledger */}
-        <section className="relative">
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#0E7490] rounded-r" />
-          <div className="pl-4">
-            <h4 className="font-label-caps text-xs text-[#434655] uppercase tracking-wider mb-3">
-              CAS Contribution Ledger
-            </h4>
-            <div className="bg-white rounded border border-[#E2E8F0] shadow-sm overflow-hidden">
-              <ul className="divide-y divide-[#E2E8F0] font-derived-value text-xs">
-                <li className="flex justify-between items-center p-3 hover:bg-[#eff4ff] transition-colors">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#1D4ED8]" />
-                    Heart Rate
-                  </span>
-                  <span className="font-bold text-[#0b1c30]">+2</span>
+        {/* Treatments */}
+        <section>
+          <h3 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-2">
+            Treatments
+          </h3>
+          {openTreatments.length === 0 ? (
+            <p className="bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 text-xs text-[#434655] font-derived-value">
+              Nothing on the treatment sheet.{' '}
+              <button
+                onClick={() => onNavigate('meds')}
+                className="text-[#0037b0] underline"
+              >
+                Open it
+              </button>
+              .
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {openTreatments.map((t) => (
+                <li key={t.treatment.id}>
+                  <button
+                    onClick={() => onNavigate('meds')}
+                    className={`w-full text-left rounded px-2.5 py-1.5 flex justify-between items-center gap-2 ${TREATMENT_STATE_STYLE[t.state].chip}`}
+                  >
+                    <span className="font-body-md text-xs font-semibold truncate">
+                      {t.treatment.drug}
+                    </span>
+                    <span className="font-label-caps text-[10px] whitespace-nowrap">
+                      {t.treatment.rateText && !t.treatment.intervalHours
+                        ? t.treatment.rateText
+                        : t.label}
+                    </span>
+                  </button>
                 </li>
-
-                <li className="flex justify-between items-center p-3 hover:bg-[#eff4ff] transition-colors">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#0E7490]" />
-                    Lactate
-                  </span>
-                  <span className="font-bold text-[#0b1c30]">+1</span>
-                </li>
-
-                <li className="flex justify-between items-center p-3 bg-[#F8FAFC] text-[#475569]">
-                  <span className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">hourglass_empty</span>
-                    Ionized Calcium
-                  </span>
-                  <span className="italic">Pending (Max +8)</span>
-                </li>
-              </ul>
-            </div>
-          </div>
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* Dual-Threshold Meter: Adult GI Sepsis Risk */}
-        <section className="relative">
-          <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#B45309] rounded-r" />
-          <div className="pl-4">
-            <div className="flex justify-between items-end mb-3">
-              <div>
-                <h4 className="font-label-caps text-xs text-[#434655] uppercase tracking-wider mb-1">
-                  Adult GI Sepsis Risk
-                </h4>
-                <span className="text-[10px] bg-[#d3e4fe] text-[#434655] px-1.5 py-0.5 rounded font-label-caps border border-[#c4c5d7]">
-                  [Internal Guideline]
-                </span>
-              </div>
-            </div>
-
-            {/* Meter */}
-            <div className="w-full h-10 bg-[#e5eeff] rounded overflow-hidden flex relative border border-[#E2E8F0] shadow-inner mt-4">
-              {/* Fill Gradient */}
-              <div className="h-full bg-gradient-to-r from-[#ECFDF5] via-[#FFF7ED] to-[#C2410C] opacity-80" style={{ width: '65%' }} />
-
-              {/* Screening Threshold at 40% */}
-              <div className="absolute top-0 bottom-0 left-[40%] flex flex-col items-center z-10">
-                <div className="w-px h-full bg-[#B45309]" />
-                <span className="absolute -top-4 text-[9px] font-label-caps text-[#B45309] bg-white px-1 border border-[#E2E8F0] rounded whitespace-nowrap z-20">
-                  Screening
-                </span>
-              </div>
-
-              {/* Confirmation Threshold at 80% */}
-              <div className="absolute top-0 bottom-0 left-[80%] flex flex-col items-center z-10">
-                <div className="w-px h-full bg-[#B91C1C]" />
-                <span className="absolute -top-4 text-[9px] font-label-caps text-[#B91C1C] bg-white px-1 border border-[#E2E8F0] rounded whitespace-nowrap z-20">
-                  Confirm
-                </span>
-              </div>
-
-              {/* Current Value Marker (Diamond) */}
-              <div className="absolute top-0 bottom-0 left-[65%] w-0.5 bg-[#0b1c30] z-20 flex items-center justify-center">
-                <div className="absolute w-3 h-3 bg-[#0b1c30] rotate-45 shadow-sm" />
-              </div>
-            </div>
-          </div>
-        </section>
+        <p className="font-derived-value text-[11px] text-[#747686] border-t border-[#E2E8F0] pt-3 leading-snug">
+          Every figure on this screen is derived from charted values. Panels with
+          uncharted inputs show a range, not a point estimate — a blank parameter is not
+          the same as a normal one.
+        </p>
       </aside>
     </div>
+  );
+};
+
+const PanelCard: React.FC<{ panel: ScorePanel; onChart: () => void }> = ({
+  panel,
+  onChart,
+}) => {
+  const accent = SEVERITY_ACCENT[panel.severity];
+  const hasData = panelHasData(panel);
+  const maxTotal = panel.criteria.reduce((s, c) => s + c.maxPoints, 0);
+  const pct = (n: number) => (maxTotal > 0 ? Math.min(100, (n / maxTotal) * 100) : 0);
+
+  return (
+    <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
+      <div className="flex items-start gap-3 p-4 pb-3">
+        <span className="w-1 self-stretch rounded" style={{ backgroundColor: accent }} />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-headline text-base font-bold text-[#0b1c30]">
+              {panel.title}
+            </h2>
+            <span className="font-label-caps text-[10px] bg-[#d3e4fe] text-[#434655] border border-[#c4c5d7] px-1.5 py-0.5 rounded">
+              {panel.source}
+            </span>
+          </div>
+
+          {hasData ? (
+            <div className="flex items-baseline gap-2 mt-1">
+              <span className="font-display text-2xl text-[#0b1c30]">
+                {panel.score.isExact
+                  ? panel.score.min
+                  : `${panel.score.min}–${panel.score.max}`}
+              </span>
+              <span className="font-derived-value text-xs text-[#747686]">
+                of {maxTotal}
+              </span>
+            </div>
+          ) : (
+            <p className="font-derived-value text-xs text-[#434655] mt-1">
+              No input for this panel has been charted.{' '}
+              <button onClick={onChart} className="text-[#0037b0] underline">
+                Record a round
+              </button>
+              .
+            </p>
+          )}
+        </div>
+      </div>
+
+      {hasData && (
+        <>
+          {/* Confirmed points solid, the uncharted band hatched */}
+          <div className="px-4">
+            <div
+              className="w-full h-6 rounded-full overflow-hidden flex border border-[#E2E8F0] bg-[#eff4ff]"
+              role="img"
+              aria-label={`${panel.score.min} confirmed of a possible ${panel.score.max}, out of ${maxTotal}`}
+            >
+              <div
+                className="h-full transition-all"
+                style={{ width: `${pct(panel.score.min)}%`, backgroundColor: accent }}
+              />
+              {!panel.score.isExact && (
+                <div
+                  className="h-full rail-track border-r border-dashed"
+                  style={{
+                    width: `${pct(panel.score.max) - pct(panel.score.min)}%`,
+                    backgroundColor: `${accent}33`,
+                    borderColor: accent,
+                  }}
+                  title="Range still possible from parameters that have not been charted"
+                />
+              )}
+            </div>
+            <div className="flex justify-between font-label-caps text-[10px] text-[#747686] mt-1">
+              <span>0</span>
+              <span>{maxTotal}</span>
+            </div>
+          </div>
+
+          {panel.interpretation && (
+            <p
+              className={`mx-4 mt-3 font-derived-value text-xs text-[#0b1c30] rounded border p-2.5 ${SEVERITY_TINT[panel.severity]}`}
+            >
+              {panel.interpretation}
+            </p>
+          )}
+
+          {/* The ledger: every criterion, its rule, and what it contributed */}
+          <details className="mt-3 group">
+            <summary className="cursor-pointer list-none px-4 py-2 border-t border-[#E2E8F0] font-label-caps text-[10px] tracking-widest text-[#434655] uppercase flex items-center gap-1.5 hover:bg-[#f8f9ff]">
+              <span className="material-symbols-outlined text-sm group-open:rotate-180 transition-transform">
+                expand_more
+              </span>
+              Contribution ledger
+            </summary>
+            <ul className="divide-y divide-[#E2E8F0] font-derived-value text-xs">
+              {panel.criteria.map((c) => (
+                <li
+                  key={c.id}
+                  className={`flex justify-between items-center gap-3 px-4 py-2 ${
+                    c.points === undefined ? 'bg-[#F8FAFC] text-[#747686]' : ''
+                  }`}
+                >
+                  <span className="min-w-0">
+                    <span className="text-[#0b1c30] font-semibold">{c.label}</span>
+                    <span className="block text-[11px] text-[#747686]">
+                      {c.rule}
+                      {c.evidence ? ` · charted ${c.evidence}` : ''}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    {c.points === undefined ? (
+                      <span className="italic">not charted (0–{c.maxPoints})</span>
+                    ) : (
+                      <span
+                        className={`font-bold ${c.points > 0 ? 'text-[#B91C1C]' : 'text-[#047857]'}`}
+                      >
+                        {c.points > 0 ? `+${c.points}` : '0'}
+                      </span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+
+      {panel.note && (
+        <p className="px-4 py-2 border-t border-[#E2E8F0] bg-[#F8FAFC] font-derived-value text-[11px] text-[#747686]">
+          {panel.note}
+        </p>
+      )}
+    </section>
   );
 };

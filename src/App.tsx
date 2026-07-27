@@ -17,6 +17,7 @@ import { NeonatalAssessmentView } from './components/views/NeonatalAssessmentVie
 import { DoseCalculatorView } from './components/views/DoseCalculatorView';
 import { ReferenceRangesView } from './components/views/ReferenceRangesView';
 import { PatientManagementView } from './components/views/PatientManagementView';
+import { TreatmentsView } from './components/views/TreatmentsView';
 
 export function App() {
   const [patients, setPatients, saveFailed] = usePersistentPatients(INITIAL_PATIENTS);
@@ -86,6 +87,8 @@ export function App() {
         patients={patients}
         setActivePatientId={setActivePatientId}
         onOpenNewAssessment={() => setIsModalOpen(true)}
+        clinician={clinician}
+        setClinician={setClinician}
       />
 
       {saveFailed && (
@@ -131,9 +134,18 @@ export function App() {
             />
           )}
 
+          {currentTab === 'meds' && (
+            <TreatmentsView
+              patient={activePatient}
+              clinician={clinician}
+              onUpdatePatient={handleUpdatePatient}
+            />
+          )}
+
           {currentTab === 'intelligence' && (
             <LiveIntelligenceView
               patient={activePatient}
+              onNavigate={setCurrentTab}
               onOpenNewAssessment={() => setIsModalOpen(true)}
             />
           )}
