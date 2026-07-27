@@ -10,6 +10,7 @@ import {
   TREATMENT_STATE_STYLE,
 } from '../../utils/treatments';
 import { computeDue, DUE_STYLES } from '../../utils/schedule';
+import { ColicReadouts } from './ColicReadouts';
 
 interface LiveIntelligenceViewProps {
   patient: Patient;
@@ -47,7 +48,13 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
 }) => {
   const now = useMemo(() => new Date(), []);
   const latest = latestColumn(patient.flowsheetHistory);
-  const triggers = evaluateCallSurgeonTriggers(latest);
+  // The round before the latest, for every reading that needs a direction
+  // rather than a value — heart rate trajectory, PCV/TP splitting.
+  const previous =
+    patient.flowsheetHistory.length > 1
+      ? patient.flowsheetHistory[patient.flowsheetHistory.length - 2]
+      : undefined;
+  const triggers = evaluateCallSurgeonTriggers(latest, undefined, previous);
   const entry = useMemo(() => columnToEntry(patient, latest), [patient, latest]);
   const panels = useMemo(() => buildPanels(patient, entry), [patient, entry]);
   const flags = useMemo(() => getPrognosticFlags(entry), [entry]);
@@ -122,6 +129,8 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
+            <ColicReadouts patient={patient} latest={latest} previous={previous} />
+
             {panels.map((p) => (
               <PanelCard key={p.id} panel={p} onChart={() => onNavigate('assess')} />
             ))}

@@ -293,7 +293,13 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     );
   };
 
-  const triggers = evaluateCallSurgeonTriggers(latestColumn(patient.flowsheetHistory));
+  const triggers = evaluateCallSurgeonTriggers(
+    latestColumn(patient.flowsheetHistory),
+    undefined,
+    patient.flowsheetHistory.length > 1
+      ? patient.flowsheetHistory[patient.flowsheetHistory.length - 2]
+      : undefined,
+  );
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#F8FAFC]">

@@ -1,6 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { useEnterAdvance } from '../../utils/formNavigation';
 import {
+  plasmaLactateBand,
+  PERITONEAL_LACTATE,
+  PCV_TP,
+  ENDOTOXEMIA,
+  BLAND_TAP_CAVEAT,
+} from '../../data/colicThresholds';
+import {
   Patient,
   FlowsheetColumn,
   GutSoundsQuadrants,
@@ -119,7 +126,10 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
 
   // Labs
   const [lactate, setLactate] = useState<string>('');
+  const [peritonealLactate, setPeritonealLactate] = useState<string>('');
   const [pcv, setPcv] = useState<string>('');
+  const [tp, setTp] = useState<string>('');
+  const [wbc, setWbc] = useState<string>('');
 
   // Laminitis
   const [digitalPulse, setDigitalPulse] = useState<string | undefined>();
@@ -199,7 +209,13 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
         mentation,
       },
       gi,
-      labs: { lactate: toNumber(lactate), pcv: toNumber(pcv) },
+      labs: {
+        lactate: toNumber(lactate),
+        peritonealLactate: toNumber(peritonealLactate),
+        pcv: toNumber(pcv),
+        tp: toNumber(tp),
+        wbc: toNumber(wbc),
+      },
       pain: hasAny(pain) ? pain : undefined,
       laminitis: hasAny(laminitis) ? laminitis : undefined,
       support: hasAny(support) ? support : undefined,
@@ -207,7 +223,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   };
 
   const draft = buildColumn();
-  const liveTriggers = evaluateCallSurgeonTriggers(draft);
+  // `latest` is the previous charted round; the draft is the one being typed.
+  const liveTriggers = evaluateCallSurgeonTriggers(draft, undefined, latest);
 
   const handleSaveRound = () => {
     const newColumn = buildColumn();
@@ -263,9 +280,24 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
         return isFoalPatient ? (v > 56 ? 'warning' : 'normal') : v > 20 ? 'warning' : 'normal';
       case 'crtSeconds':
         return v > 2 ? 'warning' : 'normal';
-      case 'lactate':
+      case 'lactate': {
+        // Plasma lactate is banded, not a single line: below 3.6 every horse in
+        // the reported series survived, above 7.0 none did.
+        const band = plasmaLactateBand(v);
+        if (band === 'DIED') return 'critical';
+        if (band === 'UNCERTAIN') return 'warning';
+        if (band === 'SURVIVED') return 'watch';
+        return 'normal';
+      }
+      case 'peritonealLactate':
+        return v > PERITONEAL_LACTATE.noSurvivorAbove ? 'critical' : v > 2 ? 'warning' : 'normal';
+      case 'wbc':
+        // Leukopenia is neutrophil extravasation — an adverse sign, not recovery.
+        return v < ENDOTOXEMIA.leukopeniaBelow ? 'warning' : v > 12.5 ? 'warning' : 'normal';
+      case 'tp':
+        return v < PCV_TP.colloidBelowTp ? 'warning' : 'normal';
       case 'pcv':
-        return classifyAgainstReference(field, v, ageClass);
+        return v > PCV_TP.graveAbove ? 'critical' : classifyAgainstReference(field, v, ageClass);
       default:
         return undefined;
     }
@@ -571,12 +603,42 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             accent: '#0E7490',
             field: 'lactate',
           })}
+          {numberField('Peritoneal fluid lactate (mmol/L)', peritonealLactate, setPeritonealLactate, {
+            placeholder: 'e.g. 2.4',
+            step: '0.1',
+            prev:
+              typeof latest?.labs?.peritonealLactate === 'number'
+                ? latest.labs.peritonealLactate
+                : undefined,
+            accent: '#0E7490',
+            field: 'peritonealLactate',
+          })}
           {numberField('PCV (%)', pcv, setPcv, {
             placeholder: 'e.g. 42',
             prev: latest?.labs?.pcv,
             accent: '#0E7490',
             field: 'pcv',
           })}
+          {numberField('Total protein (g/dL)', tp, setTp, {
+            placeholder: 'e.g. 6.2',
+            step: '0.1',
+            prev: latest?.labs?.tp,
+            accent: '#0E7490',
+            field: 'tp',
+          })}
+          {numberField('White cell count (K/µL)', wbc, setWbc, {
+            placeholder: 'e.g. 8.4',
+            step: '0.1',
+            prev: latest?.labs?.wbc,
+            accent: '#0E7490',
+            field: 'wbc',
+          })}
+
+          <p className="font-derived-value text-[11px] text-[#434655] bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 leading-snug">
+            Peritoneal lactate is charted separately from plasma because the comparison is
+            the finding — peritoneal exceeding plasma is reported as an indicator of
+            strangulated small intestine. {BLAND_TAP_CAVEAT}
+          </p>
         </>,
       )}
 

@@ -58,7 +58,7 @@ const field = (
 export const HAEMATOLOGY_FIELDS: LabField[] = [
   field('lab_pcv', 'Haematocrit (PCV)', '%', 'Haematology'),
   field('lab_rbc', 'Red cell count', 'M/µL', 'Haematology'),
-  field('lab_hgb', 'Haemoglobin', 'g/dL', 'Haematology'),
+  field('lab_hgb', 'Haemoglobin (Hb)', 'g/dL', 'Haematology'),
   field('lab_platelets', 'Platelets', 'K/µL', 'Haematology'),
   field('lab_wbc', 'White cell count', 'K/µL', 'Haematology'),
   field('lab_fibrinogen', 'Fibrinogen', 'mg/dL', 'Haematology'),
@@ -80,20 +80,20 @@ export const DIFFERENTIAL_FIELDS: LabField[] = [
 ];
 
 export const CHEMISTRY_FIELDS: LabField[] = [
-  field('lab_sodium', 'Sodium', 'mEq/L', 'Chemistry'),
-  field('lab_potassium', 'Potassium', 'mEq/L', 'Chemistry'),
-  field('lab_chloride', 'Chloride', 'mEq/L', 'Chemistry'),
-  field('lab_bicarbonate', 'Bicarbonate', 'mEq/L', 'Chemistry'),
+  field('lab_sodium', 'Sodium (Na⁺)', 'mEq/L', 'Chemistry'),
+  field('lab_potassium', 'Potassium (K⁺)', 'mEq/L', 'Chemistry'),
+  field('lab_chloride', 'Chloride (Cl⁻)', 'mEq/L', 'Chemistry'),
+  field('lab_bicarbonate', 'Bicarbonate (HCO₃⁻)', 'mEq/L', 'Chemistry'),
   field('lab_bun', 'Urea nitrogen (BUN)', 'mg/dL', 'Chemistry'),
   field('lab_creatinine', 'Creatinine', 'mg/dL', 'Chemistry'),
   field('lab_glucose', 'Glucose', 'mg/dL', 'Chemistry'),
   field('lab_lactate', 'Lactate', 'mmol/L', 'Chemistry'),
   field('lab_tp', 'Total protein', 'g/dL', 'Chemistry'),
   field('lab_albumin', 'Albumin', 'g/dL', 'Chemistry'),
-  field('lab_calcium', 'Calcium (total)', 'mg/dL', 'Chemistry'),
-  field('lab_ionized_calcium', 'Ionised calcium', 'mmol/L', 'Chemistry'),
-  field('lab_phosphate', 'Phosphate', 'mg/dL', 'Chemistry'),
-  field('lab_magnesium', 'Magnesium', 'mEq/L', 'Chemistry'),
+  field('lab_calcium', 'Calcium, total (Ca)', 'mg/dL', 'Chemistry'),
+  field('lab_ionized_calcium', 'Calcium, ionised (Ca²⁺)', 'mmol/L', 'Chemistry'),
+  field('lab_phosphate', 'Phosphate (PO₄³⁻)', 'mg/dL', 'Chemistry'),
+  field('lab_magnesium', 'Magnesium (Mg²⁺)', 'mEq/L', 'Chemistry'),
   field('lab_ast', 'AST', 'U/L', 'Chemistry'),
   field('lab_ggt', 'GGT', 'U/L', 'Chemistry'),
   field('lab_gldh', 'GLDH', 'U/L', 'Chemistry'),
@@ -105,16 +105,16 @@ export const CHEMISTRY_FIELDS: LabField[] = [
   field('lab_bile_acids', 'Bile acids', 'µmol/L', 'Chemistry'),
   field('lab_triglycerides', 'Triglycerides', 'mg/dL', 'Chemistry'),
   field('lab_cholesterol', 'Cholesterol', 'mg/dL', 'Chemistry'),
-  field('lab_iron', 'Iron', 'µg/dL', 'Chemistry'),
+  field('lab_iron', 'Iron (Fe)', 'µg/dL', 'Chemistry'),
   field('lab_tibc', 'TIBC', 'µg/dL', 'Chemistry'),
   field('lab_saa', 'Serum amyloid A', 'µg/mL', 'Chemistry'),
 ];
 
 export const BLOOD_GAS_FIELDS: LabField[] = [
   field('lab_ph', 'pH', '', 'Blood gas'),
-  field('lab_pco2', 'pCO₂', 'mmHg', 'Blood gas'),
-  field('lab_po2', 'pO₂', 'mmHg', 'Blood gas'),
-  field('lab_hco3', 'HCO₃⁻', 'mEq/L', 'Blood gas'),
+  field('lab_pco2', 'Carbon dioxide tension (pCO₂)', 'mmHg', 'Blood gas'),
+  field('lab_po2', 'Oxygen tension (pO₂)', 'mmHg', 'Blood gas'),
+  field('lab_hco3', 'Bicarbonate (HCO₃⁻)', 'mEq/L', 'Blood gas'),
   field('lab_base_excess', 'Base excess', 'mEq/L', 'Blood gas'),
 ];
 
@@ -297,7 +297,7 @@ export const DERIVED_PARAMETERS: DerivedParameter[] = [
   ),
   d(
     'lab_corrected_na',
-    'Sodium corrected for glucose',
+    'Sodium corrected for glucose (Na⁺)',
     'mEq/L',
     'Chemistry',
     ['lab_sodium', 'lab_glucose'],

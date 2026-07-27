@@ -120,12 +120,21 @@ export interface SupportData {
 }
 
 export interface LabsData {
-  lactate?: number; // mmol/L
+  lactate?: number; // mmol/L — plasma
+  /**
+   * Peritoneal fluid lactate, mmol/L. Kept separate from plasma because the
+   * comparison between the two is the finding: peritoneal exceeding plasma is
+   * reported as an indicator of strangulated small intestine, and that is lost
+   * if the two share a field.
+   */
+  peritonealLactate?: number; // mmol/L
   pcv?: number; // %
   tp?: number; // g/dL
   ionizedCalcium?: number | 'Pending'; // mmol/L
   glucose?: number | 'Pending'; // mg/dL
   igg?: number | 'Pending'; // mg/dL
+  /** Total white cell count, K/µL. Leukopenia is an endotoxaemia sign. */
+  wbc?: number;
 }
 
 export interface FlowsheetColumn {
