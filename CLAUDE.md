@@ -228,7 +228,7 @@ class of defect a unit test catches and a reviewer's eye does not):
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `neonatalSepsisScore.ts`,
-`physiologicalValidator.ts`, `gutSounds.ts`, `biomarkerEvaluator.ts`,
+`gutSounds.ts`, `biomarkerEvaluator.ts`,
 `manure.ts`, `referenceLookup.ts`, `formNavigation.ts`, `persistence.ts`
 (localStorage read/write and schema versioning), every `data/*.ts` catalogue
 other than `colicThresholds.ts` and `patientIdentity.ts`, and all of
@@ -238,8 +238,14 @@ applies: passing tests are not evidence a value reaches the screen.
 ### Orphaned modules — real work nothing reaches
 
 `utils/neonatalSepsisScore.ts` (Brewer & Koterba, ~150 lines of genuine clinical
-logic) · `utils/physiologicalValidator.ts` · `data/academicReferences.ts` (72
-references, no view) · `data/neonatalReferenceRanges.ts` · `data/flowsheetRows.ts`
+logic) · `data/academicReferences.ts` (72 references, no view) ·
+`data/flowsheetRows.ts`
+
+`utils/physiologicalValidator.ts` and `data/neonatalReferenceRanges.ts` were
+deleted (2026-07-31): the validator duplicated `prognosis.ts`'s cited cut-offs
+on the retired `PatientCategory` axis rather than the current `patientAge()`
+model, and the reference ranges were an uncited, superseded duplicate of
+`ageStratifiedReferenceRanges.ts`. Neither had an importer.
 
 ### Structural limits
 
