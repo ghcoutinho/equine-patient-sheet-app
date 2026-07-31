@@ -254,8 +254,21 @@ model, and the reference ranges were an uncited, superseded duplicate of
 - **No print or export.** The flowsheet cannot reach the medical record.
 - **`casScoreConfirmed` is still a stored literal** on `Patient`, not computed.
   `NeonatalAssessmentView` writes it. It should come from a scoring engine.
-- **9 duplicate ids in `expandedFormulary.ts`.** React keys work around it with
-  `${id}-${index}`; searching is unaffected now but the duplicates remain.
+- **6 duplicate ids remain in `expandedFormulary.ts`** (`vasopressin`,
+  `epinephrine`, `prednisolone`, `furosemide`, `dantrolene`, `acetazolamide`) —
+  all same-dose or low-magnitude (≤2×) variants cross-listed under a second
+  category, not a resolution hazard the way the three below were. React keys
+  work around it with `${id}-${index}`; searching is unaffected. The three
+  ids that mixed clinically distinct doses were split (2026-07-31), because
+  nothing stops a future `formularyId`-based lookup from resolving the wrong
+  one: `atropine_bradycardia` (0.01–0.02 mg/kg) vs `atropine_organophosphate`
+  (0.1–0.2 mg/kg, 10×) · `dexamethasone_respiratory` (0.02–0.1 mg/kg) vs
+  `dexamethasone_immunosuppressive` (0.05–0.2 mg/kg) vs
+  `dexamethasone_parturition` (100 mg total — a different dosing paradigm, not
+  just a different number) · `n-acetylcysteine_mucolytic` (10 mg/kg) vs
+  `n-acetylcysteine_toxicity` (140 mg/kg, 14×). No code currently resolves a
+  formulary entry by id — `formularyId` is written once from the selected list
+  item and never read back — so this was a data fix with no behaviour change.
 - The formulary's `patientType` split hides drugs by age class (surfaced, not
   silent — see rule 9).
 

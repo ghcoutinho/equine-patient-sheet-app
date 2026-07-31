@@ -722,7 +722,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "atropine",
+    "id": "atropine_bradycardia",
     "name": "Atropine",
     "brandName": "",
     categories: ["Cardiovascular"],
@@ -768,7 +768,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "dexamethasone",
+    "id": "dexamethasone_respiratory",
     "name": "Dexamethasone",
     "brandName": "Azium",
     categories: ["Respiratory"],
@@ -931,7 +931,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "n-acetylcysteine",
+    "id": "n-acetylcysteine_mucolytic",
     "name": "N-acetylcysteine",
     "brandName": "Mucomyst",
     categories: ["Respiratory"],
@@ -1927,7 +1927,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "dexamethasone",
+    "id": "dexamethasone_immunosuppressive",
     "name": "Dexamethasone",
     "brandName": "Azium",
     categories: ["Immunosuppressive / Anti-inflammatory (Steroids/Others)"],
@@ -3071,7 +3071,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "dexamethasone",
+    "id": "dexamethasone_parturition",
     "name": "Dexamethasone",
     "brandName": "Azium",
     categories: ["Reproductive"],
@@ -3140,7 +3140,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "atropine",
+    "id": "atropine_organophosphate",
     "name": "Atropine",
     "brandName": "",
     categories: ["Toxicology Antidotes"],
@@ -3256,7 +3256,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "n-acetylcysteine",
+    "id": "n-acetylcysteine_toxicity",
     "name": "N-acetylcysteine",
     "brandName": "Mucomyst",
     categories: ["Toxicology Antidotes"],
@@ -3557,7 +3557,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "atropine",
+    "id": "atropine_bradycardia",
     "name": "Atropine",
     "brandName": "",
     categories: ["Sedation Reversal / Emergency"],
