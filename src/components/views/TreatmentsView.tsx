@@ -1,11 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import type { Patient, Treatment, TreatmentKind, DrugFormularyItem } from '../../types';
-import { EXPANDED_FORMULARY } from '../../data/expandedFormulary';
-import {
-  computeDose,
-  defaultConcentrationUnit,
-  VOLUME_BLOCKED_MESSAGE,
-} from '../../utils/doseCalculation';
+import type { Patient, Treatment, TreatmentKind } from '../../types';
 import {
   orderedTreatments,
   treatmentTimeline,
@@ -15,13 +9,11 @@ import {
   dayLabel,
   formatDuration,
   newId,
-  intervalFromFrequency,
-  normaliseRoute,
-  ROUTES,
   upcomingDoses,
   runningLines,
   type TreatmentStatus,
 } from '../../utils/treatments';
+import { DoseEntryPanel } from './DoseEntryPanel';
 
 interface TreatmentsViewProps {
   patient: Patient;
@@ -33,13 +25,6 @@ const KIND_ICON: Record<TreatmentKind, string> = {
   MEDICATION: 'syringe',
   FLUID: 'water_drop',
   CRI: 'monitor_heart',
-};
-
-const isoLocal = (d: Date): string => {
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
 };
 
 /**
@@ -63,20 +48,6 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   const [adding, setAdding] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  // New-order form state
-  const [search, setSearch] = useState('');
-  const [pickedId, setPickedId] = useState<string>('');
-  const [kind, setKind] = useState<TreatmentKind>('MEDICATION');
-  const [drugName, setDrugName] = useState('');
-  const [dose, setDose] = useState('');
-  const [doseUnit, setDoseUnit] = useState('mg/kg');
-  const [concentration, setConcentration] = useState('');
-  const [route, setRoute] = useState('IV');
-  const [intervalHours, setIntervalHours] = useState('');
-  const [rateText, setRateText] = useState('');
-  const [startedAt, setStartedAt] = useState(() => isoLocal(new Date()));
-  const [note, setNote] = useState('');
-
   const statuses = useMemo(
     () => orderedTreatments(patient.treatments, now),
     [patient.treatments, now],
@@ -92,93 +63,13 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   const stopped = statuses.filter((s) => s.state === 'STOPPED');
   const visible = showStopped ? statuses : open;
 
-  const matches = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (q.length < 2) return [];
-    return EXPANDED_FORMULARY.filter(
-      (d) =>
-        d.name.toLowerCase().includes(q) || (d.brandName || '').toLowerCase().includes(q),
-    ).slice(0, 8);
-  }, [search]);
-
   const write = (treatments: Treatment[]) => {
     onUpdatePatient({ ...patient, treatments });
     setNow(new Date());
   };
 
-  const pickDrug = (d: DrugFormularyItem) => {
-    setPickedId(d.id);
-    setDrugName(d.name);
-    setSearch(d.name);
-    setDose(String(d.doseDefault));
-    setDoseUnit(d.doseUnit);
-    setConcentration(d.concentration > 0 ? String(d.concentration) : '');
-    setRoute(normaliseRoute(d.route[0]));
-    const iv = intervalFromFrequency(d.frequency);
-    if (d.isCRI) {
-      setKind('CRI');
-      setIntervalHours('');
-      setRateText(`${d.doseDefault} ${d.doseUnit}`);
-    } else {
-      setKind('MEDICATION');
-      setIntervalHours(iv ? String(iv) : '');
-      setRateText('');
-    }
-  };
-
-  // Live preview of the volume this order works out to, using the same engine
-  // as the dose calculator so the two can never disagree.
-  const preview = useMemo(() => {
-    const doseNum = Number(dose);
-    if (!Number.isFinite(doseNum) || !doseUnit) return undefined;
-    const concNum = Number(concentration);
-    return computeDose({
-      weightKg: patient.weightKg,
-      dose: doseNum,
-      doseUnit,
-      concentration: Number.isFinite(concNum) && concNum > 0 ? concNum : undefined,
-      concentrationUnit: defaultConcentrationUnit(doseUnit),
-    });
-  }, [dose, doseUnit, concentration, patient.weightKg]);
-
-  const resetForm = () => {
-    setSearch('');
-    setPickedId('');
-    setDrugName('');
-    setDose('');
-    setDoseUnit('mg/kg');
-    setConcentration('');
-    setRoute('IV');
-    setIntervalHours('');
-    setRateText('');
-    setNote('');
-    setStartedAt(isoLocal(new Date()));
-  };
-
-  const addTreatment = () => {
-    const name = (drugName || search).trim();
-    if (!name) return;
-    const iv = Number(intervalHours);
-    const t: Treatment = {
-      id: newId('tx'),
-      kind,
-      drug: name,
-      formularyId: pickedId || undefined,
-      doseText: dose ? `${dose} ${doseUnit}` : undefined,
-      amountText:
-        preview?.volume !== undefined
-          ? `${preview.volume} ${preview.volumeUnit}`
-          : undefined,
-      route: route || undefined,
-      intervalHours: kind === 'MEDICATION' && Number.isFinite(iv) && iv > 0 ? iv : undefined,
-      rateText: kind === 'MEDICATION' ? undefined : rateText.trim() || undefined,
-      startedAt: new Date(startedAt).toISOString(),
-      prescribedBy: clinician || 'Unattributed',
-      administrations: [],
-      note: note.trim() || undefined,
-    };
+  const addTreatment = (t: Treatment) => {
     write([...(patient.treatments ?? []), t]);
-    resetForm();
     setAdding(false);
   };
 
@@ -291,211 +182,11 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
           </div>
         </div>
 
-        {/* New order form */}
+        {/* New order — the same calculator the Dose Calculator tab uses, so
+            adding a medication here never means leaving this screen. */}
         {adding && (
-          <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4 mb-5">
-            <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-3">
-              New treatment
-            </h2>
-
-            <div className="grid md:grid-cols-3 gap-3">
-              <div className="md:col-span-2 relative">
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Drug, fluid or infusion
-                </label>
-                <input
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setDrugName(e.target.value);
-                    setPickedId('');
-                  }}
-                  placeholder="Search the formulary, or type any name"
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                />
-                {matches.length > 0 && !pickedId && (
-                  <ul className="absolute z-20 left-0 right-0 mt-1 bg-white border border-[#E2E8F0] rounded shadow-lg max-h-56 overflow-y-auto">
-                    {matches.map((d, i) => (
-                      <li key={`${d.id}-${i}`}>
-                        <button
-                          onClick={() => pickDrug(d)}
-                          className="w-full text-left px-3 py-2 hover:bg-[#eff4ff] text-sm"
-                        >
-                          <span className="font-semibold text-[#0b1c30]">{d.name}</span>
-                          {d.brandName && (
-                            <span className="text-[#747686] text-xs"> · {d.brandName}</span>
-                          )}
-                          <span className="block text-xs text-[#434655] font-derived-value">
-                            {d.doseDefault} {d.doseUnit}
-                            {d.frequency ? ` · ${d.frequency}` : ''}
-                            {d.route.length ? ` · ${d.route.join('/')}` : ''}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div>
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Type
-                </label>
-                <select
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value as TreatmentKind)}
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
-                >
-                  {(Object.keys(TREATMENT_KIND_LABEL) as TreatmentKind[]).map((k) => (
-                    <option key={k} value={k}>
-                      {TREATMENT_KIND_LABEL[k]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Dose
-                </label>
-                <div className="flex gap-1">
-                  <input
-                    value={dose}
-                    onChange={(e) => setDose(e.target.value)}
-                    inputMode="decimal"
-                    className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                  />
-                  <input
-                    value={doseUnit}
-                    onChange={(e) => setDoseUnit(e.target.value)}
-                    aria-label="Dose unit"
-                    className="w-24 border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Concentration ({defaultConcentrationUnit(doseUnit)})
-                </label>
-                <input
-                  value={concentration}
-                  onChange={(e) => setConcentration(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="on the bottle"
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                />
-              </div>
-
-              <div>
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Route
-                </label>
-                <select
-                  value={route}
-                  onChange={(e) => setRoute(e.target.value)}
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
-                >
-                  {ROUTES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {kind === 'MEDICATION' ? (
-                <div>
-                  <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                    Interval (hours)
-                  </label>
-                  <input
-                    value={intervalHours}
-                    onChange={(e) => setIntervalHours(e.target.value)}
-                    inputMode="numeric"
-                    placeholder="blank = single dose"
-                    className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                  />
-                </div>
-              ) : (
-                <div className="md:col-span-2">
-                  <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                    Rate
-                  </label>
-                  <input
-                    value={rateText}
-                    onChange={(e) => setRateText(e.target.value)}
-                    placeholder="e.g. 2 mL/kg/hr, or 0.05 mg/kg/min"
-                    className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  {kind === 'MEDICATION' ? 'Time of application' : 'Time started'}
-                </label>
-                <input
-                  type="datetime-local"
-                  value={startedAt}
-                  onChange={(e) => setStartedAt(e.target.value)}
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                />
-              </div>
-
-              <div className="md:col-span-3">
-                <label className="block font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
-                  Note
-                </label>
-                <input
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
-                />
-              </div>
-            </div>
-
-            {/* Derived amount, or an explicit reason there isn't one */}
-            {preview && (
-              <div className="mt-3 bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 font-derived-value text-xs text-[#434655]">
-                {preview.amount !== undefined && (
-                  <span className="text-[#0b1c30] font-bold">
-                    {preview.amount} {preview.amountUnit}
-                  </span>
-                )}
-                {preview.volume !== undefined ? (
-                  <span>
-                    {' '}
-                    → draw up{' '}
-                    <span className="text-[#0b1c30] font-bold">
-                      {preview.volume} {preview.volumeUnit}
-                    </span>{' '}
-                    at {patient.weightKg} kg
-                  </span>
-                ) : (
-                  <span> · {VOLUME_BLOCKED_MESSAGE[preview.volumeBlocked ?? 'no-concentration']}</span>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2 mt-3">
-              <button
-                onClick={() => {
-                  resetForm();
-                  setAdding(false);
-                }}
-                className="px-3 py-1.5 text-xs font-label-caps text-[#434655] rounded hover:bg-[#eff4ff]"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addTreatment}
-                disabled={!(drugName || search).trim()}
-                className="px-3 py-1.5 text-xs font-label-caps bg-[#0037b0] text-white rounded hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Add to sheet
-              </button>
-            </div>
+          <div className="mb-5">
+            <DoseEntryPanel patient={patient} clinician={clinician} onAddTreatment={addTreatment} />
           </div>
         )}
 

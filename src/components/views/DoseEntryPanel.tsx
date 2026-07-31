@@ -1,0 +1,832 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import type { Patient, DrugFormularyItem, Treatment, TreatmentKind } from '../../types';
+import { EXPANDED_FORMULARY } from '../../data/expandedFormulary';
+import {
+  computeDose,
+  parseDoseUnit,
+  VOLUME_BLOCKED_MESSAGE,
+  defaultConcentrationUnit,
+  concentrationUnitOptions,
+} from '../../utils/doseCalculation';
+import { ROUTES, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
+
+export interface DoseEntryPanelProps {
+  patient: Patient;
+  clinician?: string;
+  onAddTreatment: (treatment: Treatment) => void;
+}
+
+/** Stable React key — the formulary contains a handful of cross-listed ids. */
+const rowKey = (drug: DrugFormularyItem, index: number) => `${drug.id}-${index}`;
+
+const isoLocal = (d: Date): string => {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+};
+
+/**
+ * The dose calculator, and the sheet's only way to add an order.
+ *
+ * The treatment sheet used to have its own smaller copy of this — a second
+ * drug search with its own dose arithmetic, next to the real one on the
+ * calculator tab. Two implementations of "search formulary, compute a volume,
+ * write a Treatment" can drift; this is the one engine both the Dose
+ * Calculator tab and Medications & Support now render.
+ *
+ * Not every order is a formulary drug — a fluid bag or an ad-hoc line still
+ * needs a way in, so manual entry is a mode here rather than a separate form.
+ */
+export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
+  patient,
+  clinician = '',
+  onAddTreatment,
+}) => {
+  const [weightKg, setWeightKg] = useState<number>(patient.weightKg || 500);
+  const [mode, setMode] = useState<'formulary' | 'manual'>('formulary');
+  const [appliedNotice, setAppliedNotice] = useState<string | null>(null);
+
+  // Formulary mode
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('ALL');
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [doseOverride, setDoseOverride] = useState<number | null>(null);
+  const [concentrationOverride, setConcentrationOverride] = useState<string>('');
+  const [concUnitOverride, setConcUnitOverride] = useState<string>('');
+  const [showOtherAgeClass, setShowOtherAgeClass] = useState(false);
+
+  // Manual mode — not every order is in the formulary.
+  const [manualKind, setManualKind] = useState<TreatmentKind>('MEDICATION');
+  const [manualName, setManualName] = useState('');
+  const [manualDose, setManualDose] = useState('');
+  const [manualDoseUnit, setManualDoseUnit] = useState('mg/kg');
+  const [manualConcentration, setManualConcentration] = useState('');
+
+  // Shared order footer
+  const [route, setRoute] = useState<string>('IV');
+  const [intervalHours, setIntervalHours] = useState<string>('');
+  const [rateText, setRateText] = useState('');
+  const [startedAt, setStartedAt] = useState(() => isoLocal(new Date()));
+  const [note, setNote] = useState('');
+
+  const isFoal = patient.isFoal || patient.category === 'NEONATAL_FOAL';
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    EXPANDED_FORMULARY.forEach((d) => d.categories?.forEach((c) => set.add(c)));
+    return ['ALL', ...Array.from(set).sort()];
+  }, []);
+
+  // The formulary is filtered to the patient's age class by default, because a
+  // foal dose of an adult drug is usually wrong. But hiding entries silently
+  // made the formulary look half its size, so anything excluded is counted and
+  // offered rather than dropped.
+  const { results, hiddenByAgeClass } = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const matchesQuery = (d: (typeof EXPANDED_FORMULARY)[number]) => {
+      if (category !== 'ALL' && !(d.categories || []).includes(category)) return false;
+      if (!q) return true;
+      return (
+        d.name.toLowerCase().includes(q) ||
+        (d.brandName || '').toLowerCase().includes(q) ||
+        (d.indications || []).some((i) => i.toLowerCase().includes(q))
+      );
+    };
+    const forThisPatient = (d: (typeof EXPANDED_FORMULARY)[number]) =>
+      d.patientType === 'BOTH' || d.patientType === (isFoal ? 'FOAL' : 'ADULT');
+
+    const matching = EXPANDED_FORMULARY.filter(matchesQuery);
+    const inClass = matching.filter(forThisPatient);
+    const outOfClass = matching.filter((d) => !forThisPatient(d));
+
+    return {
+      results: showOtherAgeClass ? [...inClass, ...outOfClass] : inClass,
+      hiddenByAgeClass: showOtherAgeClass ? 0 : outOfClass.length,
+    };
+  }, [search, category, isFoal, showOtherAgeClass]);
+
+  const selected = selectedIndex !== null ? results[selectedIndex] : undefined;
+
+  const selectDrug = (index: number) => {
+    setSelectedIndex(index);
+    setDoseOverride(null);
+    setConcentrationOverride('');
+    setConcUnitOverride('');
+  };
+
+  const dose = selected ? doseOverride ?? selected.doseDefault : 0;
+  const concentration = selected
+    ? concentrationOverride.trim() !== ''
+      ? Number(concentrationOverride)
+      : selected.concentration
+    : 0;
+
+  // The unit the bottle is labelled in. Falls back to the formulary's own unit,
+  // then to the conventional partner for the dose unit — so an IU/kg drug
+  // assumes IU/mL instead of failing as a unit mismatch.
+  const concUnit = selected
+    ? concUnitOverride || selected.concentrationUnit || defaultConcentrationUnit(selected.doseUnit)
+    : '';
+
+  const result = selected
+    ? computeDose({
+        weightKg,
+        dose,
+        doseUnit: selected.doseUnit,
+        concentration: Number.isFinite(concentration) ? concentration : 0,
+        concentrationUnit: concUnit,
+      })
+    : null;
+
+  const spec = selected ? parseDoseUnit(selected.doseUnit) : null;
+  const isRate = spec?.kind === 'per-kg-rate';
+  const accent = isRate ? '#8B5CF6' : '#0037b0';
+
+  // Route and interval seeded from the formulary entry so the common case is
+  // one click; the clinician can still override either before adding.
+  useEffect(() => {
+    if (!selected) return;
+    setRoute(normaliseRoute(selected.route?.[0]));
+    const iv = intervalFromFrequency(selected.frequency);
+    setIntervalHours(selected.isCRI || !iv ? '' : String(iv));
+    setRateText(selected.isCRI ? `${selected.doseDefault} ${selected.doseUnit}` : '');
+  }, [selected]);
+
+  // Manual mode's own live preview, using the same engine as the formulary
+  // side so the two can never disagree.
+  const manualPreview = useMemo(() => {
+    const doseNum = Number(manualDose);
+    if (!Number.isFinite(doseNum) || !manualDoseUnit) return undefined;
+    const concNum = Number(manualConcentration);
+    return computeDose({
+      weightKg,
+      dose: doseNum,
+      doseUnit: manualDoseUnit,
+      concentration: Number.isFinite(concNum) && concNum > 0 ? concNum : undefined,
+      concentrationUnit: defaultConcentrationUnit(manualDoseUnit),
+    });
+  }, [manualDose, manualDoseUnit, manualConcentration, weightKg]);
+
+  const resetAfterAdd = () => {
+    setSelectedIndex(null);
+    setDoseOverride(null);
+    setConcentrationOverride('');
+    setConcUnitOverride('');
+    setManualName('');
+    setManualDose('');
+    setManualConcentration('');
+    setRoute('IV');
+    setIntervalHours('');
+    setRateText('');
+    setNote('');
+    setStartedAt(isoLocal(new Date()));
+  };
+
+  const notify = (name: string) => {
+    setAppliedNotice(`${name} added to the treatment sheet`);
+    setTimeout(() => setAppliedNotice(null), 4000);
+  };
+
+  const addFromFormulary = () => {
+    if (!selected || !result) return;
+    const iv = Number(intervalHours);
+    const treatment: Treatment = {
+      id: newId('tx'),
+      kind: isRate || selected.isCRI ? 'CRI' : 'MEDICATION',
+      drug: selected.name,
+      formularyId: selected.id,
+      doseText: `${dose} ${selected.doseUnit}`,
+      amountText: result.volume !== undefined ? `${result.volume} ${result.volumeUnit}` : undefined,
+      route,
+      intervalHours: !isRate && !selected.isCRI && Number.isFinite(iv) && iv > 0 ? iv : undefined,
+      rateText: isRate || selected.isCRI ? `${dose} ${selected.doseUnit}` : undefined,
+      startedAt: new Date(startedAt).toISOString(),
+      prescribedBy: clinician || 'Unattributed',
+      administrations: [],
+      note: [`Calculated at ${weightKg} kg`, note.trim() || undefined].filter(Boolean).join(' — '),
+    };
+    onAddTreatment(treatment);
+    notify(selected.name);
+    resetAfterAdd();
+  };
+
+  const addManually = () => {
+    const name = manualName.trim();
+    if (!name) return;
+    const iv = Number(intervalHours);
+    const treatment: Treatment = {
+      id: newId('tx'),
+      kind: manualKind,
+      drug: name,
+      doseText: manualDose ? `${manualDose} ${manualDoseUnit}` : undefined,
+      amountText:
+        manualPreview?.volume !== undefined
+          ? `${manualPreview.volume} ${manualPreview.volumeUnit}`
+          : undefined,
+      route: route || undefined,
+      intervalHours: manualKind === 'MEDICATION' && Number.isFinite(iv) && iv > 0 ? iv : undefined,
+      rateText: manualKind === 'MEDICATION' ? undefined : rateText.trim() || undefined,
+      startedAt: new Date(startedAt).toISOString(),
+      prescribedBy: clinician || 'Unattributed',
+      administrations: [],
+      note: note.trim() || undefined,
+    };
+    onAddTreatment(treatment);
+    notify(name);
+    resetAfterAdd();
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header & weight */}
+      <div className="bg-white p-6 rounded-lg border border-[#E2E8F0] shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="bg-[#0037b0] text-white px-2.5 py-0.5 rounded font-label-caps text-xs">
+              VETERINARY PHARMACOLOGY
+            </span>
+            <span className="text-xs font-derived-value text-[#434655]">
+              {EXPANDED_FORMULARY.length} drugs · {results.length} for this patient
+            </span>
+          </div>
+          <h1 className="font-display text-2xl text-[#0b1c30] mt-1">
+            Precision Dose &amp; CRI Calculator
+          </h1>
+          <p className="font-body-md text-sm text-[#434655] mt-1">
+            Active Patient: <span className="font-bold text-[#0037b0]">{patient.name}</span> (
+            {patient.breed}) · {isFoal ? 'foal' : 'adult'} formulary
+          </p>
+        </div>
+
+        <div className="bg-[#eff4ff] border border-[#E2E8F0] p-4 rounded-lg flex items-center gap-4 w-full md:w-auto">
+          <div>
+            <label className="font-label-caps text-[10px] text-[#434655] block" htmlFor="weight">
+              PATIENT WEIGHT
+            </label>
+            <div className="flex items-baseline gap-1">
+              <span className="font-display text-3xl text-[#0037b0] font-bold">{weightKg}</span>
+              <span className="font-label-caps text-xs text-[#434655]">kg</span>
+            </div>
+          </div>
+          <div className="flex-1 md:w-48">
+            <input
+              id="weight"
+              type="range"
+              min="40"
+              max="900"
+              step="5"
+              value={weightKg}
+              onChange={(e) => setWeightKg(parseFloat(e.target.value))}
+              className="w-full h-2 bg-[#e5eeff] rounded-lg appearance-none cursor-pointer accent-[#0037b0]"
+            />
+            <div className="flex justify-between text-[10px] font-derived-value text-[#434655] mt-1">
+              <span>Foal 40</span>
+              <span>Light 400</span>
+              <span>Draft 800</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {appliedNotice && (
+        <div
+          role="status"
+          className="p-3 bg-[#ECFDF5] border border-[#047857] text-[#047857] rounded-lg font-derived-value text-xs flex items-center gap-2"
+        >
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          <span>{appliedNotice}</span>
+        </div>
+      )}
+
+      {/* Mode toggle */}
+      <div className="flex rounded border border-[#E2E8F0] overflow-hidden w-fit">
+        {(
+          [
+            ['formulary', 'From the formulary'],
+            ['manual', 'Not in the formulary'],
+          ] as const
+        ).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            className={`px-3 py-1.5 text-xs font-label-caps transition-colors ${
+              mode === m ? 'bg-[#1d4ed8] text-white' : 'bg-white text-[#434655] hover:bg-[#eff4ff]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'formulary' ? (
+        <>
+          {/* Filters */}
+          <div className="bg-white p-4 rounded-lg border border-[#E2E8F0] shadow-sm flex flex-col sm:flex-row gap-3">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setSelectedIndex(null);
+              }}
+              placeholder={`Search ${EXPANDED_FORMULARY.length} drugs by name, brand or indication…`}
+              aria-label="Search the formulary"
+              className="flex-1 min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+            />
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setSelectedIndex(null);
+              }}
+              aria-label="Filter by category"
+              className="min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm sm:w-72 focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+            >
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c === 'ALL' ? 'All categories' : c}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            {/* Results */}
+            <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm overflow-hidden">
+              <div className="px-4 py-2 bg-[#f8f9ff] border-b border-[#E2E8F0] font-label-caps text-xs text-[#434655] flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  {results.length} result{results.length === 1 ? '' : 's'}
+                  <span className="normal-case tracking-normal text-[#747686]">
+                    {' '}
+                    · {isFoal ? 'foal' : 'adult'} dosing
+                  </span>
+                </span>
+                {(hiddenByAgeClass > 0 || showOtherAgeClass) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowOtherAgeClass((v) => !v)}
+                    className="text-[#0037b0] hover:underline normal-case tracking-normal"
+                  >
+                    {showOtherAgeClass
+                      ? `Hide ${isFoal ? 'adult' : 'foal'}-only entries`
+                      : `${hiddenByAgeClass} more labelled ${isFoal ? 'adult' : 'foal'}-only — show`}
+                  </button>
+                )}
+              </div>
+              <ul className="max-h-[560px] overflow-y-auto divide-y divide-[#E2E8F0]">
+                {results.length === 0 && (
+                  <li className="p-6 text-center font-body-md text-sm text-[#434655]">
+                    No drug matches those filters.
+                  </li>
+                )}
+                {results.map((drug, i) => {
+                  const active = selectedIndex === i;
+                  const rate = parseDoseUnit(drug.doseUnit).kind === 'per-kg-rate';
+                  return (
+                    <li key={rowKey(drug, i)}>
+                      <button
+                        type="button"
+                        onClick={() => selectDrug(i)}
+                        aria-current={active}
+                        className={`w-full text-left px-4 py-3 min-h-[44px] transition ${
+                          active ? 'bg-[#e5eeff]' : 'hover:bg-[#f8f9ff]'
+                        }`}
+                      >
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="font-headline text-sm font-bold text-[#0b1c30]">
+                            {drug.name}
+                            {drug.brandName && (
+                              <span className="font-body-md font-normal text-[#747686]">
+                                {' '}
+                                ({drug.brandName})
+                              </span>
+                            )}
+                          </span>
+                          {rate && (
+                            <span className="text-[10px] font-label-caps px-1.5 py-0.5 rounded bg-[#8B5CF6]/10 text-[#8B5CF6] border border-[#8B5CF6]/30 flex-shrink-0">
+                              CRI
+                            </span>
+                          )}
+                        </span>
+                        <span className="block font-derived-value text-xs text-[#434655] mt-0.5">
+                          {drug.doseMin === drug.doseMax
+                            ? `${drug.doseDefault} ${drug.doseUnit}`
+                            : `${drug.doseMin}–${drug.doseMax} ${drug.doseUnit}`}
+                          {drug.route?.length ? ` · ${drug.route.join('/')}` : ''}
+                          {drug.frequency ? ` · ${drug.frequency}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Calculator */}
+            {!selected || !result ? (
+              <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-8 text-center">
+                <span className="material-symbols-outlined text-4xl text-[#c4c5d7]">vaccines</span>
+                <p className="font-body-md text-sm text-[#434655] mt-2">
+                  Select a drug to calculate a dose for {patient.name}.
+                </p>
+              </div>
+            ) : (
+              <div
+                className="bg-white rounded-lg shadow-sm p-6 space-y-5"
+                style={{ border: `${isRate ? 2 : 1}px solid ${isRate ? accent : '#E2E8F0'}` }}
+              >
+                <div className="flex justify-between items-start gap-3">
+                  <div>
+                    <h2 className="font-headline text-lg font-bold text-[#0b1c30]">
+                      {selected.name}
+                      {selected.brandName && (
+                        <span className="font-body-md font-normal text-[#747686]">
+                          {' '}
+                          ({selected.brandName})
+                        </span>
+                      )}
+                    </h2>
+                    <p className="font-derived-value text-xs text-[#434655]">
+                      {(selected.categories || []).join(' · ')}
+                    </p>
+                  </div>
+                  <span
+                    className="px-2 py-0.5 rounded font-label-caps text-xs whitespace-nowrap"
+                    style={{ backgroundColor: `${accent}1a`, color: accent }}
+                  >
+                    {selected.route?.join('/') || '—'}
+                  </span>
+                </div>
+
+                {/* Dose */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-label-caps text-xs text-[#434655]" htmlFor="dose">
+                      Target dose ({selected.doseUnit})
+                    </label>
+                    <span className="font-clinical-value text-sm font-bold" style={{ color: accent }}>
+                      {dose} {selected.doseUnit}
+                    </span>
+                  </div>
+                  {selected.doseMin < selected.doseMax ? (
+                    <>
+                      <input
+                        id="dose"
+                        type="range"
+                        min={selected.doseMin}
+                        max={selected.doseMax}
+                        step={(selected.doseMax - selected.doseMin) / 100}
+                        value={dose}
+                        onChange={(e) => setDoseOverride(parseFloat(e.target.value))}
+                        className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-[#e5eeff]"
+                        style={{ accentColor: accent }}
+                      />
+                      <div className="flex justify-between text-[10px] font-derived-value text-[#434655] mt-0.5">
+                        <span>Min {selected.doseMin}</span>
+                        <span>Formulary default {selected.doseDefault}</span>
+                        <span>Max {selected.doseMax}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="font-derived-value text-xs text-[#434655]">
+                      Single published dose — no range on file.
+                    </p>
+                  )}
+                  {spec?.qualifier && (
+                    <p className="font-derived-value text-[11px] text-[#B45309] mt-1">
+                      Dose is expressed as: {spec.qualifier}
+                    </p>
+                  )}
+                </div>
+
+                {/* Concentration */}
+                <div>
+                  <label className="font-label-caps text-xs text-[#434655] block mb-1" htmlFor="conc">
+                    Concentration on the bottle
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="conc"
+                      type="number"
+                      step="0.1"
+                      value={concentrationOverride !== '' ? concentrationOverride : selected.concentration || ''}
+                      onChange={(e) => setConcentrationOverride(e.target.value)}
+                      placeholder="Not on file — enter what is on the bottle"
+                      className="flex-1 min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:ring-2 focus:outline-none no-spinner"
+                      style={{ ['--tw-ring-color' as string]: accent }}
+                    />
+                    <select
+                      aria-label="Concentration unit"
+                      value={concUnit}
+                      onChange={(e) => setConcUnitOverride(e.target.value)}
+                      className="min-h-[44px] px-2 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:outline-none"
+                      style={{ ['--tw-ring-color' as string]: accent }}
+                    >
+                      {Array.from(new Set([concUnit, ...concentrationUnitOptions(selected.doseUnit)]))
+                        .filter(Boolean)
+                        .map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  {!selected.concentration && (
+                    <p className="font-derived-value text-[11px] text-[#B45309] mt-1">
+                      No concentration in the formulary for this drug — enter the product
+                      concentration to get a volume.
+                    </p>
+                  )}
+                </div>
+
+                {/* Result */}
+                <div className="p-4 bg-[#f8f9ff] rounded border border-[#E2E8F0] grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <span className="font-label-caps text-[10px] text-[#434655] block">
+                      {isRate ? 'AMOUNT PER HOUR' : 'TOTAL DOSE'}
+                    </span>
+                    <span className="font-display text-2xl text-[#0b1c30]">
+                      {result.amount ?? '—'}
+                      <span className="text-xs text-[#747686]"> {result.amountUnit ?? ''}</span>
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-label-caps text-[10px] text-[#434655] block">
+                      {isRate ? 'INFUSION RATE' : 'VOLUME TO ADMINISTER'}
+                    </span>
+                    {result.volume !== undefined ? (
+                      <span className="font-display text-2xl" style={{ color: accent }}>
+                        {result.volume}
+                        <span className="text-xs text-[#747686]"> {result.volumeUnit}</span>
+                      </span>
+                    ) : (
+                      <span className="font-derived-value text-xs text-[#B45309] block mt-1">
+                        {VOLUME_BLOCKED_MESSAGE[result.volumeBlocked!]}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {selected.frequency && (
+                  <p className="font-derived-value text-xs text-[#434655]">
+                    Formulary frequency: <strong>{selected.frequency}</strong>
+                  </p>
+                )}
+
+                {/* Dosing that changes with foal age */}
+                {selected.foalAgeBands && selected.foalAgeBands.length > 0 && (
+                  <div className="rounded border border-[#B45309]/30 bg-[#FFFBEB] overflow-hidden">
+                    <div className="px-3 py-1.5 border-b border-[#B45309]/20">
+                      <span className="font-label-caps text-[10px] text-[#B45309] font-bold uppercase tracking-wider">
+                        Dose varies with foal age
+                      </span>
+                    </div>
+                    <table className="w-full text-left border-collapse">
+                      <tbody className="text-xs">
+                        {selected.foalAgeBands.map((band) => (
+                          <tr key={band.label} className="border-b border-[#B45309]/10 last:border-0">
+                            <td className="px-3 py-1.5 font-body-md text-[#0b1c30] whitespace-nowrap">
+                              {band.label}
+                            </td>
+                            <td className="px-3 py-1.5 font-clinical-value text-[#0b1c30]">{band.dose}</td>
+                            <td className="px-3 py-1.5 text-[#747686] font-sans whitespace-nowrap">
+                              {[band.route, band.frequency].filter(Boolean).join(' · ')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="px-3 py-1.5 font-derived-value text-[10px] text-[#B45309]">
+                      The slider above uses a single figure. Pick the band that matches this foal.
+                    </p>
+                  </div>
+                )}
+
+                {selected.sourceNote && (
+                  <p className="font-derived-value text-[11px] text-[#747686]">
+                    Source: {selected.sourceNote}
+                  </p>
+                )}
+
+                {selected.indications?.length > 0 && (
+                  <div>
+                    <span className="font-label-caps text-[10px] text-[#434655] block mb-1">
+                      INDICATIONS
+                    </span>
+                    <p className="font-body-md text-xs text-[#0b1c30]">
+                      {selected.indications.join(' · ')}
+                    </p>
+                  </div>
+                )}
+
+                {selected.cautions && (
+                  <div className="p-3 rounded border bg-[#FFF7ED] border-[#C2410C]/30">
+                    <span className="font-label-caps text-[10px] text-[#C2410C] block mb-0.5">
+                      CAUTIONS
+                    </span>
+                    <p className="font-body-md text-xs text-[#0b1c30]">{selected.cautions}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* Manual entry — not a formulary drug */
+        <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-6 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="font-label-caps text-[10px] text-[#434655] block mb-1" htmlFor="manual-kind">
+                Kind
+              </label>
+              <select
+                id="manual-kind"
+                value={manualKind}
+                onChange={(e) => setManualKind(e.target.value as TreatmentKind)}
+                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:outline-none focus:border-[#0037b0]"
+              >
+                <option value="MEDICATION">Medication</option>
+                <option value="FLUID">Fluid</option>
+                <option value="CRI">CRI</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="font-label-caps text-[10px] text-[#434655] block mb-1" htmlFor="manual-name">
+                Drug / fluid name
+              </label>
+              <input
+                id="manual-name"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                placeholder="e.g. Plasma-Lyte A"
+                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:outline-none focus:border-[#0037b0]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="font-label-caps text-[10px] text-[#434655] block mb-1" htmlFor="manual-dose">
+                Dose
+              </label>
+              <input
+                id="manual-dose"
+                value={manualDose}
+                onChange={(e) => setManualDose(e.target.value)}
+                inputMode="decimal"
+                placeholder="e.g. 4"
+                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:outline-none focus:border-[#0037b0]"
+              />
+            </div>
+            <div>
+              <label className="font-label-caps text-[10px] text-[#434655] block mb-1" htmlFor="manual-unit">
+                Dose unit
+              </label>
+              <input
+                id="manual-unit"
+                value={manualDoseUnit}
+                onChange={(e) => setManualDoseUnit(e.target.value)}
+                placeholder="mg/kg, mL/kg, mL (total)…"
+                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:outline-none focus:border-[#0037b0]"
+              />
+            </div>
+            <div>
+              <label className="font-label-caps text-[10px] text-[#434655] block mb-1" htmlFor="manual-conc">
+                Concentration (optional)
+              </label>
+              <input
+                id="manual-conc"
+                value={manualConcentration}
+                onChange={(e) => setManualConcentration(e.target.value)}
+                inputMode="decimal"
+                placeholder="mg/mL on the bottle"
+                className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-clinical-value text-sm focus:outline-none focus:border-[#0037b0]"
+              />
+            </div>
+          </div>
+
+          {manualDose && (
+            <div className="p-3 bg-[#f8f9ff] rounded border border-[#E2E8F0] text-sm font-derived-value text-[#434655]">
+              {manualPreview?.volume !== undefined ? (
+                <>
+                  Computed volume:{' '}
+                  <strong className="font-clinical-value text-[#0037b0]">
+                    {manualPreview.volume} {manualPreview.volumeUnit}
+                  </strong>
+                </>
+              ) : manualPreview?.volumeBlocked ? (
+                <span className="text-[#B45309]">
+                  {VOLUME_BLOCKED_MESSAGE[manualPreview.volumeBlocked]}
+                </span>
+              ) : (
+                'Enter a dose unit to compute a volume.'
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Order footer — route, timing and the add action, shared by both modes */}
+      <div className="bg-white rounded-lg border border-[#E2E8F0] shadow-sm p-6 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1" htmlFor="order-route">
+              Route
+            </label>
+            <select
+              id="order-route"
+              value={route}
+              onChange={(e) => setRoute(e.target.value)}
+              className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+            >
+              {ROUTES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1" htmlFor="order-interval">
+              {(mode === 'formulary' && (isRate || selected?.isCRI)) || (mode === 'manual' && manualKind !== 'MEDICATION')
+                ? 'Continuous — rate'
+                : 'Interval (h)'}
+            </label>
+            {(mode === 'formulary' && (isRate || selected?.isCRI)) || (mode === 'manual' && manualKind !== 'MEDICATION') ? (
+              <input
+                id="order-interval"
+                value={
+                  mode === 'formulary' ? `${dose} ${selected?.doseUnit ?? ''}` : rateText
+                }
+                onChange={(e) => mode === 'manual' && setRateText(e.target.value)}
+                readOnly={mode === 'formulary'}
+                placeholder="rate, e.g. 2 mL/kg/hr"
+                className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white disabled:bg-[#f8f9ff] focus:outline-none focus:border-[#0037b0]"
+              />
+            ) : (
+              <input
+                id="order-interval"
+                value={intervalHours}
+                onChange={(e) => setIntervalHours(e.target.value)}
+                inputMode="numeric"
+                placeholder="blank = single dose"
+                className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#0037b0]"
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1" htmlFor="order-started">
+              Started
+            </label>
+            <input
+              id="order-started"
+              type="datetime-local"
+              value={startedAt}
+              onChange={(e) => setStartedAt(e.target.value)}
+              className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+            />
+          </div>
+          <div>
+            <label className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase block mb-1" htmlFor="order-note">
+              Note (optional)
+            </label>
+            <input
+              id="order-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="anything worth charting alongside this order"
+              className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={mode === 'formulary' ? addFromFormulary : addManually}
+          disabled={mode === 'formulary' ? !selected || !result : !manualName.trim()}
+          className="w-full py-2.5 rounded font-label-caps text-xs font-bold text-white shadow-sm flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ backgroundColor: mode === 'formulary' ? accent : '#0037b0' }}
+        >
+          <span className="material-symbols-outlined text-base">add_task</span>
+          <span>
+            {mode === 'formulary' && (isRate || selected?.isCRI)
+              ? 'Start this CRI on the treatment sheet'
+              : mode === 'manual' && manualKind !== 'MEDICATION'
+                ? 'Start this line on the treatment sheet'
+                : 'Add to the treatment sheet'}
+          </span>
+        </button>
+
+        <p className="font-derived-value text-[11px] text-[#747686] text-center">
+          Decision support only — verify every dose against your own formulary before
+          administration.
+        </p>
+      </div>
+    </div>
+  );
+};
