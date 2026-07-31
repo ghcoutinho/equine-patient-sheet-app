@@ -87,6 +87,11 @@ scoring panel.
 a browser, and read the actual rendered output. Several defects above passed
 typecheck and lint cleanly.
 
+`npm test` must pass before any change is called done — alongside build, lint
+and `tsc`, not instead of driving the app. Unit tests catch the arithmetic
+class of defect (a 10× dose error, a band boundary one integer off); they do
+not catch a value that was never wired to a view. Both checks are required.
+
 ### 8. Flag, do not silently correct, suspect source data
 
 When a published table contains an obvious error (Equine Internal Medicine Table
@@ -114,11 +119,19 @@ npm run dev          # http://localhost:5173
 npm run build        # tsc -b && vite build  — MUST pass before claiming done
 npm run lint         # oxlint
 npx tsc --noEmit -p tsconfig.app.json
+npm test             # vitest run — MUST pass before any change is called done
+npm run test:watch   # vitest, watch mode
 ```
 
 Fonts (Hanken Grotesk, JetBrains Mono) and Material Symbols load from Google
 Fonts via `index.html`. Offline, icons render as their ligature names
 ("table_chart") — that is a network symptom, not a bug.
+
+### CI
+
+`.github/workflows/ci.yml` runs lint, `tsc --noEmit` and `npm test` on every
+push and pull request. It does not build or touch Pages — that stays
+`deploy.yml`'s job alone, so the two workflows cannot race each other.
 
 ### Deployment
 
@@ -188,19 +201,39 @@ and it is lost if they share a column.
 
 ## Known state — what is not done
 
-### No tests. Zero.
+### Tests: the calculation core, not the app
 
-This is the largest structural risk in the project. Every change so far has been
-verified by driving a browser once, by hand. A 10× overdose bug once shipped
-here (`concentrationMgMl / 10` in the volume calculation) — exactly the class of
-defect a unit test catches and a reviewer's eye does not.
+Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
+own — `vite.config.ts` is enough). 179 tests across 8 files in
+`src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
+came from (`concentrationMgMl / 10` in the volume calculation — exactly the
+class of defect a unit test catches and a reviewer's eye does not):
 
-Highest-value targets, in order: `doseCalculation.ts` (unit families, `%`
-handling, cross-family refusal), `labs.ts` (`computeDerived`,
-`differentialCheck`), `colicThresholds.ts` (band boundaries, PCV/TP splitting,
-peritoneal comparison), `schedule.ts` and `treatments.ts` (due-state edges).
+- `doseCalculation.ts` — unit families (mass, activity), cross-family refusal,
+  `%` as g/100 mL, rates, totals, opaque units, qualifier text, doses already
+  expressed as a volume.
+- `labs.ts` — `computeDerived` for every derived parameter, `differentialCheck`,
+  `flagValue`.
+- `colicThresholds.ts` — every band boundary, `comparePeritonealLactate`,
+  `readPcvTp` splitting, `readReflux`, `readHeartRate` trajectory including the
+  ±2 bpm dead-band.
+- `missingDataHandler.ts` — `calculateScoreBounds`, in particular `isExact`
+  going false when any single item is uncharted.
+- `schedule.ts` / `treatments.ts` — due-state boundaries, `upcomingDoses`
+  horizon capping, `intervalFromFrequency` across q6h / q8-12h / BID / CRI.
+- `patientIdentity.ts` — `ageClassFromDays` at each cohort edge, `betweenBands`,
+  the legacy no-date-of-birth fallback.
+- `intelligence.ts` — `columnToEntry`'s °F→°C conversion, so a foal's
+  temperature is proven to reach the scoring panels.
 
-There is no test runner installed. Vitest fits this stack.
+**Not covered — deliberately out of scope for this pass, not forgotten:**
+`callSurgeonTriggers.ts`, `prognosis.ts`, `neonatalSepsisScore.ts`,
+`physiologicalValidator.ts`, `gutSounds.ts`, `biomarkerEvaluator.ts`,
+`manure.ts`, `referenceLookup.ts`, `formNavigation.ts`, `persistence.ts`
+(localStorage read/write and schema versioning), every `data/*.ts` catalogue
+other than `colicThresholds.ts` and `patientIdentity.ts`, and all of
+`components/` — no view has ever been rendered under test. Rule 7 still
+applies: passing tests are not evidence a value reaches the screen.
 
 ### Orphaned modules — real work nothing reaches
 
