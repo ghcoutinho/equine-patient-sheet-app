@@ -111,10 +111,8 @@ export const NewAssessmentModal: React.FC<NewAssessmentModalProps> = ({
       isFoal,
       diagnosis: diagnosis.trim() || undefined,
       bodySystems: diagnosis.trim() ? suggestBodySystems(diagnosis) : undefined,
-      // No fabricated scores. These stay at zero until a round is charted and
-      // the scoring engines have something real to work from.
-      casScoreConfirmed: 0,
-      casScoreMaxPending: 0,
+      // No fabricated scores. Scores are computed on read from charted data —
+      // see buildPanels in utils/intelligence.ts — so nothing needs seeding here.
       sirsCriteriaMet: false,
       category: isFoal ? 'NEONATAL_FOAL' : 'ADULT_COLIC',
       gender: sex,

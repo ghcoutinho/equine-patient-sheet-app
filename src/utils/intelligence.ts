@@ -40,12 +40,32 @@ function normalOrAbnormal(
 const numeric = (v: number | 'Pending' | undefined): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
+/**
+ * Total calcium, mg/dL, from the most recently collected full lab panel.
+ *
+ * The flowsheet round only charts ionised calcium (mmol/L) — a different
+ * analyte in different units, deliberately not fed to any threshold expecting
+ * total calcium (see the note below). Total calcium only exists in the full
+ * `LabPanel` system, so this is the one scoring input `columnToEntry` sources
+ * from somewhere other than the current round.
+ */
+function latestTotalCalcium(patient: Patient): number | undefined {
+  const panels = patient.labPanels ?? [];
+  if (!panels.length) return undefined;
+  const latest = [...panels].sort(
+    (a, b) => new Date(b.collectedAt).getTime() - new Date(a.collectedAt).getTime(),
+  )[0];
+  const v = latest.values.lab_calcium;
+  return Number.isFinite(v) ? v : undefined;
+}
+
 /** Map a charted round onto the flat record the scoring engines consume. */
 export function columnToEntry(
   patient: Patient,
   column: FlowsheetColumn | undefined,
 ): Partial<FlowsheetEntry> {
-  if (!column) return {};
+  const calcium = latestTotalCalcium(patient);
+  if (!column) return { calcium };
   const { vitals, gi, labs } = column;
 
   const gutSounds = gi?.gutSounds ? summariseGutSounds(gi.gutSounds) : undefined;
@@ -86,9 +106,10 @@ export function columnToEntry(
     abdominalUltrasound: normalOrAbnormal('flashUltrasound', gi?.flashUltrasound),
     rectalExam: normalOrAbnormal('rectalExam', gi?.rectalExam),
 
-    // Deliberately not mapped: ionised calcium is charted in mmol/L and the
-    // engines' calcium thresholds are total calcium in mg/dL. Feeding one into
-    // the other would score every patient abnormal, so it is left uncharted.
+    // Total calcium, not the round's ionised calcium (mmol/L) — see
+    // latestTotalCalcium. Feeding ionised mmol/L into a total-calcium mg/dL
+    // threshold would score every patient abnormal, so the two stay separate.
+    calcium,
   };
 }
 
@@ -322,6 +343,120 @@ export function giSeverityPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
 }
 
 /**
+ * Colic assessment score (adult horse), Farrell, Kersh, Liepman & Dembek 2021
+ * (Front Vet Sci 8:697589, "Development of a Colic Scoring System to Predict
+ * Outcome in Horses"). Six variables from the retrospective/prospective study
+ * (Table 2), each 0/1/2, summed 0–12; the published cutoff of > 7 maximised
+ * sensitivity (84–86%) and specificity (62–64%) for non-survival, AUC 0.82.
+ *
+ * Lactate, ultrasound and rectal exam only take the published 0/2 endpoints —
+ * the source table leaves their middle column blank. The lactate table prints
+ * "0–2" then ">2.1"; the gap between 2 and 2.1 is treated as a typesetting
+ * artefact of rounding, not an intended dead zone, and closed at > 2 mmol/L.
+ */
+export function casPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
+  const criteria: Criterion[] = [
+    {
+      id: 'hr',
+      label: 'Heart rate',
+      maxPoints: 2,
+      rule: '26–45 = 0 · 46–60 = 1 · ≥ 61 = 2',
+      evidence: fmt(entry.heartRate, 'bpm'),
+      points:
+        entry.heartRate === undefined
+          ? undefined
+          : entry.heartRate >= 61
+            ? 2
+            : entry.heartRate >= 46
+              ? 1
+              : 0,
+    },
+    {
+      id: 'rr',
+      label: 'Respiratory rate',
+      maxPoints: 2,
+      rule: '5–16 = 0 · 17–28 = 1 · ≥ 29 = 2',
+      evidence: fmt(entry.respiratoryRate, 'brpm'),
+      points:
+        entry.respiratoryRate === undefined
+          ? undefined
+          : entry.respiratoryRate >= 29
+            ? 2
+            : entry.respiratoryRate >= 17
+              ? 1
+              : 0,
+    },
+    {
+      id: 'calcium',
+      label: 'Total calcium',
+      maxPoints: 2,
+      rule: '≥ 11.9 = 0 · 10.6–11.8 = 1 · 6–10.5 = 2',
+      evidence: fmt(entry.calcium, 'mg/dL'),
+      points:
+        entry.calcium === undefined
+          ? undefined
+          : entry.calcium >= 11.9
+            ? 0
+            : entry.calcium >= 10.6
+              ? 1
+              : 2,
+    },
+    {
+      id: 'lactate',
+      label: 'Blood lactate',
+      maxPoints: 2,
+      rule: '0–2 = 0 · > 2 = 2',
+      evidence: fmt(entry.lactate, 'mmol/L'),
+      points: entry.lactate === undefined ? undefined : entry.lactate > 2 ? 2 : 0,
+    },
+    {
+      id: 'us',
+      label: 'Abdominal ultrasound',
+      maxPoints: 2,
+      rule: 'Normal = 0 · abnormal = 2',
+      evidence: entry.abdominalUltrasound,
+      points:
+        entry.abdominalUltrasound === undefined
+          ? undefined
+          : entry.abdominalUltrasound === 'ABNORMAL'
+            ? 2
+            : 0,
+    },
+    {
+      id: 'rectal',
+      label: 'Rectal examination',
+      maxPoints: 2,
+      rule: 'Normal = 0 · abnormal = 2',
+      evidence: entry.rectalExam,
+      points: entry.rectalExam === undefined ? undefined : entry.rectalExam === 'ABNORMAL' ? 2 : 0,
+    },
+  ];
+
+  const score = boundsOf(criteria);
+  // Cutoff is > 7 predicts non-survival, so a score of exactly 7 anywhere in
+  // the range still predicts survival.
+  const diePredicted = score.min > 7;
+  const survivePredicted = score.max <= 7;
+
+  return {
+    id: 'cas',
+    title: 'Colic assessment score (adult)',
+    source: 'Farrell et al. 2021 (Front Vet Sci 8:697589)',
+    score,
+    criteria,
+    severity: diePredicted ? 'critical' : survivePredicted ? 'normal' : 'warning',
+    interpretation: diePredicted
+      ? `CAS ${score.min}/12 — above the published cutoff of 7 for predicted non-survival (sensitivity 84–86%, specificity 62–64%).`
+      : survivePredicted
+        ? `CAS ${score.min === score.max ? score.min : `${score.min}–${score.max}`}/12 — at or below the cutoff of 7, predicting survival.`
+        : `CAS ${score.min}–${score.max}/12 — uncharted criteria could still take this either side of the cutoff of 7.`,
+    note: score.isExact
+      ? undefined
+      : 'Range reflects criteria that have not been charted this round; total calcium comes from the most recent lab panel, not the round itself.',
+  };
+}
+
+/**
  * Foal survival, Brewer & Koterba's seven-item screen as implemented here.
  * Each item is one point for the favourable finding; the published score is
  * 0–7, so a value is only meaningful once most items are charted.
@@ -494,7 +629,7 @@ export function buildPanels(
 ): ScorePanel[] {
   return patient.isFoal
     ? [neonatalSirsPanel(entry), foalSurvivalPanel(patient, entry)]
-    : [sirsPanel(entry), giSeverityPanel(entry)];
+    : [sirsPanel(entry), giSeverityPanel(entry), casPanel(entry)];
 }
 
 /** True when at least one input for this panel was actually charted. */

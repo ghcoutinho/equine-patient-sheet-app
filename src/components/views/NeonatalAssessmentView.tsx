@@ -94,8 +94,6 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
       fssPrematurityDays: gestationDays,
       fssColdExtremities: coldExtremities,
       fssInfectiousSite: infectiousSites.join('; '),
-      casScoreConfirmed: confirmedScore,
-      casScoreMaxPending: maxPendingScore,
     };
     onUpdatePatient(updated);
   };

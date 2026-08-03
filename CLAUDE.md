@@ -204,7 +204,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 179 tests across 8 files in
+own — `vite.config.ts` is enough). 192 tests across 8 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -223,8 +223,11 @@ class of defect a unit test catches and a reviewer's eye does not):
   horizon capping, `intervalFromFrequency` across q6h / q8-12h / BID / CRI.
 - `patientIdentity.ts` — `ageClassFromDays` at each cohort edge, `betweenBands`,
   the legacy no-date-of-birth fallback.
-- `intelligence.ts` — `columnToEntry`'s °F→°C conversion, so a foal's
-  temperature is proven to reach the scoring panels.
+- `intelligence.ts` — `columnToEntry`'s °F→°C conversion (so a foal's
+  temperature is proven to reach the scoring panels) and total-calcium
+  sourcing from the lab panel; `casPanel`'s band edges, the lactate table's
+  closed gap, and the > 7 cutoff including the indeterminate case where
+  missing data straddles it.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `neonatalSepsisScore.ts`,
@@ -252,8 +255,13 @@ model, and the reference ranges were an uncited, superseded duplicate of
 - **Single-browser storage.** No sync, no second device, no colleague. Clearing
   site data loses everything. A ward tool needs a backend and auth.
 - **No print or export.** The flowsheet cannot reach the medical record.
-- **`casScoreConfirmed` is still a stored literal** on `Patient`, not computed.
-  `NeonatalAssessmentView` writes it. It should come from a scoring engine.
+- **`NeonatalAssessmentView` computes the Foal Survival Score twice.** Its own
+  local glucose/IgG inputs feed a hand-rolled `confirmedScore`/`maxPendingScore`
+  for the form's live display, while `foalSurvivalPanel` in `intelligence.ts`
+  independently computes the same FSS from the charted round's glucose/IgG.
+  The two can disagree if the form's values and the round's charted values
+  differ — the same "two engines" pattern the dose calculator merge fixed.
+  Not fixed here; flagged for the same treatment.
 - **6 duplicate ids remain in `expandedFormulary.ts`** (`vasopressin`,
   `epinephrine`, `prednisolone`, `furosemide`, `dantrolene`, `acetazolamide`) —
   all same-dose or low-magnitude (≤2×) variants cross-listed under a second
@@ -291,7 +299,9 @@ Colic thresholds: Freeman *Colic Surgery in the Horse* · Blikslager *The Equine
 Acute Abdomen*. See `data/colicThresholds.ts`.
 
 Scoring: Biondi 2026 SIRS · Brewer & Koterba · Bottegaro 2024 / McGovern 2025
-admission cut-offs.
+admission cut-offs · Farrell, Kersh, Liepman & Dembek 2021 (Front Vet Sci
+8:697589) colic assessment score (adult) — see `casPanel` in
+`utils/intelligence.ts`.
 
 The Rood & Riddle formulary is **not** bulk-imported — it is proprietary. Use it
 as a cross-check; the source of record is the clinician's own EIM tables.

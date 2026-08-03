@@ -32,8 +32,6 @@ export const INITIAL_PATIENTS: Patient[] = [
     owner: { name: 'John Doe' },
     sirsCriteriaMet: true,
     sirsDescription: 'HR > 60, Temp > 38.5°C, Lactate > 2.0 mmol/L',
-    casScoreConfirmed: 14,
-    casScoreMaxPending: 18,
     flowsheetHistory: [
       {
         time: '14:00',
@@ -78,8 +76,6 @@ export const INITIAL_PATIENTS: Patient[] = [
     criActive: 'Lidocaine Active',
     sirsCriteriaMet: true,
     sirsDescription: 'HR > 60 & RR > 30 detected.',
-    casScoreConfirmed: 3,
-    casScoreMaxPending: 11,
     flowsheetHistory: [
       {
         time: '13:30',
@@ -123,8 +119,6 @@ export const INITIAL_PATIENTS: Patient[] = [
     owner: { name: 'Acme Farms' },
     sirsCriteriaMet: false,
     sirsDescription: 'Normal parameters.',
-    casScoreConfirmed: 1,
-    casScoreMaxPending: 3,
     flowsheetHistory: [
       {
         time: '12:00',
@@ -163,8 +157,6 @@ export const INITIAL_PATIENTS: Patient[] = [
     isFoal: true,
     sirsCriteriaMet: true,
     sirsDescription: '2/4 Criteria met (Temp, HR). High risk of sepsis.',
-    casScoreConfirmed: 4,
-    casScoreMaxPending: 6,
     fssPrematurityDays: 338,
     fssColdExtremities: true,
     fssInfectiousSite: 'Umbilicus',

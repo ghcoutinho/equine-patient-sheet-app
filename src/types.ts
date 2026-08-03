@@ -287,8 +287,6 @@ export interface Patient {
   flowsheetHistory: FlowsheetColumn[];
   
   // Scoring details
-  casScoreConfirmed: number;
-  casScoreMaxPending: number;
   sirsCriteriaMet: boolean;
   sirsDescription?: string;
   
@@ -412,11 +410,6 @@ export interface FoalSurvivalResult {
 export interface AdultSepsisResult {
   score: ScoreBounds;
   interpretation: 'LOW_RISK' | 'POSSIBLE' | 'HIGHLY_PROBABLE';
-}
-
-export interface CASResult {
-  score: ScoreBounds;
-  prediction: 'SURVIVE' | 'DIE';
 }
 
 export interface BiomarkerEvaluator {
