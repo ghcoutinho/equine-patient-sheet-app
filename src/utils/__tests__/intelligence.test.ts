@@ -118,6 +118,95 @@ describe('columnToEntry — total calcium from the lab panel, not the round', ()
   });
 });
 
+describe('columnToEntry — biomarkers sourced from the lab panel', () => {
+  const withPanel = (values: Record<string, number>) =>
+    patient({ labPanels: [{ id: 'l1', collectedAt: '2026-07-31T08:00:00Z', values }] });
+
+  it('sources SAA and NGAL directly from the panel', () => {
+    const e = columnToEntry(withPanel({ lab_saa: 1300, lab_ngal: 900 }), column());
+    expect(e.saa).toBe(1300);
+    expect(e.ngal).toBe(900);
+  });
+
+  it('sources RPR as the already-derived RDW:platelet ratio, not re-divided here', () => {
+    const e = columnToEntry(withPanel({ lab_rdw: 20, lab_platelets: 150 }), column());
+    expect(e.rpr).toBe(0.133);
+  });
+
+  it('are all undefined with no lab panel on file', () => {
+    const e = columnToEntry(patient(), column());
+    expect(e.saa).toBeUndefined();
+    expect(e.ngal).toBeUndefined();
+    expect(e.rpr).toBeUndefined();
+  });
+});
+
+describe('columnToEntry — bands, fibrinogen and blood gas from the lab panel', () => {
+  const withPanel = (values: Record<string, number>) =>
+    patient({ labPanels: [{ id: 'l1', collectedAt: '2026-07-31T08:00:00Z', values }] });
+
+  it('converts band neutrophils from K/µL to /µL, same as WBC', () => {
+    const e = columnToEntry(withPanel({ lab_neuts_band: 0.6 }), column());
+    expect(e.bands).toBe(600);
+  });
+
+  it('passes fibrinogen and blood gas through in their charted units', () => {
+    const e = columnToEntry(withPanel({ lab_fibrinogen: 900, lab_po2: 55, lab_pco2: 58 }), column());
+    expect(e.fibrinogen).toBe(900);
+    expect(e.pao2).toBe(55);
+    expect(e.paco2).toBe(58);
+  });
+
+  it('stay undefined rather than zero with no panel on file', () => {
+    const e = columnToEntry(patient(), column());
+    expect(e.bands).toBeUndefined();
+    expect(e.fibrinogen).toBeUndefined();
+    expect(e.pao2).toBeUndefined();
+    expect(e.paco2).toBeUndefined();
+  });
+});
+
+describe('columnToEntry — neonatal exam findings', () => {
+  it('maps cold extremities, hypotonia and petechiae from the round', () => {
+    const e = columnToEntry(
+      patient(),
+      column({
+        neonatal: { coldExtremities: true, hypotonia: 'SEVERE', petechiae: true },
+      }),
+    );
+    expect(e.coldExtremities).toBe(true);
+    expect(e.hypotonia).toBe('SEVERE');
+    expect(e.petechiae).toBe(true);
+  });
+
+  it('respects a charted "warm"/"no petechiae" rather than treating false as missing', () => {
+    const e = columnToEntry(
+      patient(),
+      column({ neonatal: { coldExtremities: false, petechiae: false } }),
+    );
+    expect(e.coldExtremities).toBe(false);
+    expect(e.petechiae).toBe(false);
+  });
+
+  it('reduces infectious sites to a count for the scoring engines', () => {
+    const e = columnToEntry(
+      patient(),
+      column({
+        neonatal: { infectiousSites: ['Umbilicus (omphalophlebitis)', 'Joint (septic arthritis)'] },
+      }),
+    );
+    expect(e.infectiousSitesCount).toBe(2);
+  });
+
+  it('is undefined, not zero, when the neonatal section was never charted', () => {
+    const e = columnToEntry(patient(), column());
+    expect(e.coldExtremities).toBeUndefined();
+    expect(e.hypotonia).toBeUndefined();
+    expect(e.petechiae).toBeUndefined();
+    expect(e.infectiousSitesCount).toBeUndefined();
+  });
+});
+
 describe('columnToEntry — WBC is charted in K/µL and scored in cells/µL', () => {
   it('converts a charted 9.0 K/µL to 9,000 cells/µL', () => {
     const e = columnToEntry(patient(), column({ labs: { wbc: 9.0 } }));

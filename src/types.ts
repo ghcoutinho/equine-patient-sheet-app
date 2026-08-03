@@ -137,6 +137,19 @@ export interface LabsData {
   wbc?: number;
 }
 
+/**
+ * Neonatal clinical exam findings — Brewer & Koterba sepsis-score and Foal
+ * Survival Score inputs that don't belong under GI, pain or laminitis.
+ * Infectious sites is a list (not a count) so the record keeps which sites,
+ * not just how many; the scoring engines read `infectiousSites.length`.
+ */
+export interface NeonatalExamData {
+  coldExtremities?: boolean;
+  hypotonia?: 'MILD' | 'SEVERE' | 'NONE';
+  petechiae?: boolean;
+  infectiousSites?: string[];
+}
+
 export interface FlowsheetColumn {
   /** Stable identity so a round can be edited or removed. */
   id?: string;
@@ -152,6 +165,7 @@ export interface FlowsheetColumn {
   pain?: PainData;
   laminitis?: LaminitisData;
   support?: SupportData;
+  neonatal?: NeonatalExamData;
   note?: string;
 }
 
@@ -413,9 +427,17 @@ export interface AdultSepsisResult {
 }
 
 export interface BiomarkerEvaluator {
-  saa?: { value: number; interpretation: 'NORMAL' | 'ACTIVE_INFLAMMATION' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK' };
-  ngal?: { value: number; interpretation: 'NORMAL' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK' };
-  rpr?: { value: number; interpretation: 'NORMAL' | 'AT_RISK' | 'SEPSIS_RISK' };
+  saa?: {
+    value: number;
+    interpretation: 'NORMAL' | 'ACTIVE_INFLAMMATION' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK';
+    source: string;
+  };
+  ngal?: {
+    value: number;
+    interpretation: 'NORMAL' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK';
+    source: string;
+  };
+  rpr?: { value: number; interpretation: 'NORMAL' | 'AT_RISK' | 'SEPSIS_RISK'; source: string };
 }
 
 export interface FlowsheetEntry {

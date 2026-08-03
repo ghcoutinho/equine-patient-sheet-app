@@ -19,7 +19,7 @@ export interface AssessmentOption {
   hint?: string;
 }
 
-export type AssessmentFamily = 'vitals' | 'pain' | 'gi' | 'laminitis' | 'support';
+export type AssessmentFamily = 'vitals' | 'pain' | 'gi' | 'laminitis' | 'support' | 'neonatal';
 
 export interface AssessmentDefinition {
   id: string;
@@ -37,6 +37,7 @@ export const FAMILY_ACCENT: Record<AssessmentFamily, string> = {
   gi: '#B45309',
   laminitis: '#A21CAF',
   support: '#0E7490',
+  neonatal: '#DB2777',
 };
 
 export const SEVERITY_STYLES: Record<
@@ -273,6 +274,50 @@ export const INCISION_STATUS: AssessmentDefinition = {
   ],
 };
 
+/**
+ * Extremity temperature, a Foal Survival Score item (Brewer & Koterba). Warm
+ * is favourable — this is why `entry.coldExtremities` scores 1 point when
+ * `false` in foalSurvivalPanel.
+ */
+export const COLD_EXTREMITIES: AssessmentDefinition = {
+  id: 'coldExtremities',
+  label: 'Extremity temperature',
+  family: 'neonatal',
+  prompt: 'Extremities warm or cold?',
+  columns: 2,
+  options: [
+    { value: 'Warm', severity: 'normal' },
+    { value: 'Cold', severity: 'critical', hint: 'Peripheral hypoperfusion' },
+  ],
+};
+
+/** Neonatal sepsis score item (Brewer & Koterba). */
+export const HYPOTONIA: AssessmentDefinition = {
+  id: 'hypotonia',
+  label: 'Muscle tone',
+  family: 'neonatal',
+  prompt: 'Tone on handling',
+  columns: 1,
+  options: [
+    { value: 'Normal', severity: 'normal' },
+    { value: 'Mild hypotonia', severity: 'watch' },
+    { value: 'Severe hypotonia', severity: 'critical' },
+  ],
+};
+
+/** Neonatal sepsis score item (Brewer & Koterba). */
+export const PETECHIAE: AssessmentDefinition = {
+  id: 'petechiae',
+  label: 'Petechiation',
+  family: 'neonatal',
+  prompt: 'Petechiae present?',
+  columns: 2,
+  options: [
+    { value: 'Absent', severity: 'normal' },
+    { value: 'Present', severity: 'critical' },
+  ],
+};
+
 export const ASSESSMENTS: AssessmentDefinition[] = [
   MUCOUS_MEMBRANES,
   MENTATION,
@@ -288,6 +333,9 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
   CRYOTHERAPY,
   IV_CATHETER_SITE,
   INCISION_STATUS,
+  COLD_EXTREMITIES,
+  HYPOTONIA,
+  PETECHIAE,
 ];
 
 const SEVERITY_BY_VALUE = new Map<string, AssessmentSeverity>();

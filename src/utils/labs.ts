@@ -108,6 +108,13 @@ export const CHEMISTRY_FIELDS: LabField[] = [
   field('lab_iron', 'Iron (Fe)', 'µg/dL', 'Chemistry'),
   field('lab_tibc', 'TIBC', 'µg/dL', 'Chemistry'),
   field('lab_saa', 'Serum amyloid A', 'µg/mL', 'Chemistry'),
+  field(
+    'lab_ngal',
+    'NGAL',
+    'µg/L',
+    'Chemistry',
+    'Neonatal sepsis marker — see the Inflammatory biomarkers panel',
+  ),
 ];
 
 export const BLOOD_GAS_FIELDS: LabField[] = [

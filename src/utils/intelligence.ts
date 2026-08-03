@@ -8,6 +8,7 @@ import type {
 import { calculateScoreBounds } from './missingDataHandler';
 import { severityOf } from '../data/clinicalAssessments';
 import { summariseGutSounds } from './gutSounds';
+import { computeDerived } from './labs';
 
 /**
  * The bridge between what is charted and what the scoring engines expect.
@@ -59,6 +60,23 @@ function latestPanelValue(patient: Patient, parameterId: string): number | undef
   return Number.isFinite(v) ? v : undefined;
 }
 
+/**
+ * A *derived* parameter (RPR — RDW ÷ platelets) from the most recent panel.
+ *
+ * Reuses labs.ts's own computeDerived rather than re-dividing RDW by
+ * platelets a second way — biomarkerEvaluator.ts used to do exactly that as
+ * a fallback, which is the same "two engines can disagree" shape the FSS
+ * split-brain and the dose-calculator merge were both written from.
+ */
+function latestDerivedPanelValue(patient: Patient, derivedId: string): number | undefined {
+  const panels = patient.labPanels ?? [];
+  if (!panels.length) return undefined;
+  const latest = [...panels].sort(
+    (a, b) => new Date(b.collectedAt).getTime() - new Date(a.collectedAt).getTime(),
+  )[0];
+  return computeDerived(latest.values).find((r) => r.parameter.id === derivedId)?.value;
+}
+
 /** Thousands per microlitre → per microlitre. */
 const K_PER_UL_TO_PER_UL = 1000;
 
@@ -90,8 +108,23 @@ export function columnToEntry(
   patient: Patient,
   column: FlowsheetColumn | undefined,
 ): Partial<FlowsheetEntry> {
+  // Sourced from the most recent full lab panel, not the quick round — none
+  // of these are part of TPR/GI/quick-labs charting. bands is charted in K/µL
+  // like WBC and gets the same conversion, for the same reason (see
+  // wbcPerMicrolitre) — the neonatal sepsis score's absolute-count thresholds
+  // are written in cells/µL.
   const calcium = latestPanelValue(patient, 'lab_calcium');
-  if (!column) return { calcium, wbc: wbcPerMicrolitre(patient, undefined) };
+  const saa = latestPanelValue(patient, 'lab_saa');
+  const ngal = latestPanelValue(patient, 'lab_ngal');
+  const rpr = latestDerivedPanelValue(patient, 'lab_rpr');
+  const bandsKPerUl = latestPanelValue(patient, 'lab_neuts_band');
+  const bands = bandsKPerUl === undefined ? undefined : bandsKPerUl * K_PER_UL_TO_PER_UL;
+  const fibrinogen = latestPanelValue(patient, 'lab_fibrinogen');
+  const pao2 = latestPanelValue(patient, 'lab_po2');
+  const paco2 = latestPanelValue(patient, 'lab_pco2');
+  const panelSourced = { calcium, saa, ngal, rpr, bands, fibrinogen, pao2, paco2 };
+
+  if (!column) return { ...panelSourced, wbc: wbcPerMicrolitre(patient, undefined) };
   const { vitals, gi, labs } = column;
 
   const gutSounds = gi?.gutSounds ? summariseGutSounds(gi.gutSounds) : undefined;
@@ -134,11 +167,17 @@ export function columnToEntry(
     abdominalUltrasound: normalOrAbnormal('flashUltrasound', gi?.flashUltrasound),
     rectalExam: normalOrAbnormal('rectalExam', gi?.rectalExam),
 
-    // Total calcium from the lab panel, not the round's ionised calcium
-    // (mmol/L) — see latestPanelValue. Feeding ionised mmol/L into a
-    // total-calcium mg/dL threshold would score every patient abnormal, so the
-    // two stay separate.
-    calcium,
+    coldExtremities: column.neonatal?.coldExtremities,
+    hypotonia: column.neonatal?.hypotonia,
+    petechiae: column.neonatal?.petechiae,
+    // The record keeps which sites (clinically useful — "umbilicus and both
+    // hocks" matters for antimicrobial choice); the score only needs the count.
+    infectiousSitesCount: column.neonatal?.infectiousSites?.length,
+
+    // calcium/saa/ngal/rpr: see panelSourced above. Total calcium specifically
+    // is never the round's ionised calcium (mmol/L) — feeding ionised mmol/L
+    // into a total-calcium mg/dL threshold would score every patient abnormal.
+    ...panelSourced,
   };
 }
 

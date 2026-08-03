@@ -10,6 +10,7 @@ import {
   PCV_TP,
   REFLUX,
   HEART_RATE,
+  INSENSIBLE_LOSS,
 } from '../colicThresholds';
 
 /**
@@ -239,5 +240,14 @@ describe('readHeartRate', () => {
 
   it('returns undefined when nothing was charted', () => {
     expect(readHeartRate(undefined, 52)).toBeUndefined();
+  });
+});
+
+describe('INSENSIBLE_LOSS', () => {
+  it('holds the clinician-supplied range, labelled as a ward convention', () => {
+    expect(INSENSIBLE_LOSS.minMlPerKgPerDay).toBe(10.4);
+    expect(INSENSIBLE_LOSS.maxMlPerKgPerDay).toBe(33.6);
+    expect(INSENSIBLE_LOSS.provenance).toBe('ward-convention');
+    expect(INSENSIBLE_LOSS.source).not.toContain('et al');
   });
 });

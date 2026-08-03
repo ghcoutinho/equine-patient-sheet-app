@@ -250,7 +250,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 192 tests across 8 files in
+own — `vite.config.ts` is enough). 224 tests across 9 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -270,25 +270,47 @@ class of defect a unit test catches and a reviewer's eye does not):
 - `patientIdentity.ts` — `ageClassFromDays` at each cohort edge, `betweenBands`,
   the legacy no-date-of-birth fallback.
 - `intelligence.ts` — `columnToEntry`'s °F→°C conversion (so a foal's
-  temperature is proven to reach the scoring panels) and total-calcium
-  sourcing from the lab panel; `casPanel`'s band edges, the lactate table's
-  closed gap, and the > 7 cutoff including the indeterminate case where
-  missing data straddles it.
+  temperature is proven to reach the scoring panels), the WBC K/µL→cells/µL
+  conversion (a charted 9.0 K/µL must not read as leukopenic — this is the
+  same class of defect as the 10× overdose bug, just on a scoring threshold
+  instead of a dose), and lab-panel sourcing for total calcium, SAA, NGAL,
+  RPR, band neutrophils, fibrinogen and blood gas; `casPanel`'s band edges,
+  the lactate table's closed gap, and the > 7 cutoff including the
+  indeterminate case where missing data straddles it.
+- `biomarkerEvaluator.ts` — every SAA/NGAL/RPR cut-off against its cited
+  paper, including the boundary values themselves (1,050/1,250 mg/L,
+  455/1,104 µg/L, 0.0928).
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `neonatalSepsisScore.ts`,
-`gutSounds.ts`, `biomarkerEvaluator.ts`,
-`manure.ts`, `referenceLookup.ts`, `formNavigation.ts`, `persistence.ts`
-(localStorage read/write and schema versioning), every `data/*.ts` catalogue
-other than `colicThresholds.ts` and `patientIdentity.ts`, and all of
-`components/` — no view has ever been rendered under test. Rule 7 still
-applies: passing tests are not evidence a value reaches the screen.
+`gutSounds.ts`, `manure.ts`, `referenceLookup.ts`, `formNavigation.ts`,
+`persistence.ts` (localStorage read/write and schema versioning), every
+`data/*.ts` catalogue other than `colicThresholds.ts` and `patientIdentity.ts`,
+and all of `components/` — no view has ever been rendered under test. Rule 7
+still applies: passing tests are not evidence a value reaches the screen.
 
 ### Orphaned modules — real work nothing reaches
 
 `utils/neonatalSepsisScore.ts` (Brewer & Koterba, ~150 lines of genuine clinical
-logic) · `data/academicReferences.ts` (72 references, no view) ·
-`data/flowsheetRows.ts`
+logic — has the charting inputs now: `bands`/`fibrinogen`/`pao2`/`paco2` are
+sourced from the lab panel and `coldExtremities`/`hypotonia`/`petechiae`/
+`infectiousSitesCount` from the round's new Neonatal Exam section, but the
+file itself still needs the rewrite into the `ScorePanel` shape and the
+absolute-vs-percentage bands guess resolved before it can be wired in) ·
+`data/academicReferences.ts` (72 references, no view — ~15 are what the code
+actually cites, the rest is FHIR/software articles and blog-tier sources) ·
+`data/flowsheetRows.ts` (superseded — its SAA/NGAL/RPR and neonatal-exam
+fields are now real, type-checked fields on `LabField`/`NeonatalExamData`
+rather than this file's untyped spec; still unimported, safe to delete)
+
+`biomarkerEvaluator.ts` was wired into Clinical Intelligence (2026-08-03)
+without ever being able to receive data — SAA, NGAL and RPR were not
+chartable anywhere — and its thresholds carried no citation, published or
+otherwise. Both are fixed: `lab_ngal` joined `lab_saa` in the lab panel, RPR
+reads the already-derived `lab_rpr` instead of re-dividing RDW by platelets a
+second way, and every cut-off now traces to its paper (Hoeberg 2022, Laurberg
+2023, Scalco 2023) except the SAA "elevated" floor and the RPR "at risk"
+floor, which are labelled unsourced rather than attributed to one.
 
 `utils/physiologicalValidator.ts` and `data/neonatalReferenceRanges.ts` were
 deleted (2026-07-31): the validator duplicated `prognosis.ts`'s cited cut-offs

@@ -16,6 +16,7 @@ import {
   LaminitisData,
   SupportData,
   GIData,
+  NeonatalExamData,
 } from '../../types';
 import { GutSoundsQuadrant } from '../ui/GutSoundsQuadrant';
 import { OptionGrid } from '../ui/OptionGrid';
@@ -30,9 +31,11 @@ import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { completeTasksForRound } from '../../utils/schedule';
 import {
   ANALGESIA,
+  COLD_EXTREMITIES,
   CRYOTHERAPY,
   DIGITAL_PULSE,
   FLASH_ULTRASOUND,
+  HYPOTONIA,
   INCISION_STATUS,
   IV_CATHETER_SITE,
   MENTATION,
@@ -40,6 +43,7 @@ import {
   NASOGASTRIC_TUBE,
   PAIN_BEHAVIOUR,
   PERITONEAL_FLUID,
+  PETECHIAE,
   RECTAL_EXAM,
   REFLUX_APPEARANCE,
   RESPONSE_TO_THERAPY,
@@ -67,7 +71,7 @@ const FIELD_STYLE: Record<Exclude<FieldSeverity, undefined>, { border: string; t
   critical: { border: '#B91C1C', text: '#B91C1C', label: 'critical' },
 };
 
-type SectionId = 'vitals' | 'pain' | 'gi' | 'labs' | 'laminitis' | 'support';
+type SectionId = 'vitals' | 'pain' | 'gi' | 'labs' | 'laminitis' | 'support' | 'neonatal';
 
 const SECTIONS: { id: SectionId; label: string; accent: string }[] = [
   { id: 'vitals', label: 'Vitals Assessment', accent: '#1D4ED8' },
@@ -76,6 +80,23 @@ const SECTIONS: { id: SectionId; label: string; accent: string }[] = [
   { id: 'labs', label: 'Lab Tests', accent: '#0E7490' },
   { id: 'laminitis', label: 'Laminitis Watch', accent: '#A21CAF' },
   { id: 'support', label: 'Catheter & Incision', accent: '#0E7490' },
+  { id: 'neonatal', label: 'Neonatal Exam', accent: '#DB2777' },
+];
+
+/**
+ * Sites for the Brewer & Koterba "infectious sites" item. A fixed list plus
+ * free-text extension, because a fixed four-option dropdown could not record
+ * "umbilicus and both hocks" — the same reasoning NeonatalAssessmentView's
+ * (now-legacy) picker used.
+ */
+const INFECTIOUS_SITE_OPTIONS = [
+  'Umbilicus (omphalophlebitis)',
+  'Joint (septic arthritis)',
+  'Physis / osteomyelitis',
+  'Respiratory (pneumonia)',
+  'Gastrointestinal (enteritis)',
+  'Central nervous system (meningitis)',
+  'Ophthalmic (uveitis)',
 ];
 
 /** Parse a text input into a number, preserving a charted 0. */
@@ -140,6 +161,15 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [ivCatheterSite, setIvCatheterSite] = useState<string | undefined>();
   const [incisionStatus, setIncisionStatus] = useState<string | undefined>();
 
+  // Neonatal exam — Brewer & Koterba sepsis-score and Foal Survival Score
+  // items that live outside GI/pain/laminitis.
+  const [coldExtremitiesOpt, setColdExtremitiesOpt] = useState<string | undefined>();
+  const [hypotoniaOpt, setHypotoniaOpt] = useState<string | undefined>();
+  const [petechiaeOpt, setPetechiaeOpt] = useState<string | undefined>();
+  const [infectiousSites, setInfectiousSites] = useState<string[]>([]);
+  const [siteOptions, setSiteOptions] = useState<string[]>(INFECTIOUS_SITE_OPTIONS);
+  const [newSite, setNewSite] = useState('');
+
   const [open, setOpen] = useState<Set<SectionId>>(new Set<SectionId>(['vitals']));
 
   // Enter walks down the numeric fields so a whole round can be charted
@@ -153,6 +183,19 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       else next.add(id);
       return next;
     });
+
+  const toggleSite = (site: string) =>
+    setInfectiousSites((prev) =>
+      prev.includes(site) ? prev.filter((s) => s !== site) : [...prev, site],
+    );
+
+  const addSite = () => {
+    const v = newSite.trim();
+    if (!v) return;
+    setSiteOptions((prev) => (prev.includes(v) ? prev : [...prev, v]));
+    setInfectiousSites((prev) => (prev.includes(v) ? prev : [...prev, v]));
+    setNewSite('');
+  };
 
   const gutSummary = summariseGutSounds(gutSounds);
 
@@ -192,6 +235,23 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
 
     const support: SupportData = { ivCatheterSite, incisionStatus };
 
+    const neonatal: NeonatalExamData = {
+      coldExtremities:
+        coldExtremitiesOpt === undefined ? undefined : coldExtremitiesOpt === 'Cold',
+      hypotonia:
+        hypotoniaOpt === 'Mild hypotonia'
+          ? 'MILD'
+          : hypotoniaOpt === 'Severe hypotonia'
+            ? 'SEVERE'
+            : hypotoniaOpt === 'Normal'
+              ? 'NONE'
+              : undefined,
+      petechiae: petechiaeOpt === undefined ? undefined : petechiaeOpt === 'Present',
+      // An empty array reads as "not assessed", same as every other optional
+      // field here — only a genuinely non-empty selection counts as charted.
+      infectiousSites: infectiousSites.length > 0 ? infectiousSites : undefined,
+    };
+
     const hasAny = (o: object) => Object.values(o).some((v) => v !== undefined);
 
     return {
@@ -219,6 +279,12 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       pain: hasAny(pain) ? pain : undefined,
       laminitis: hasAny(laminitis) ? laminitis : undefined,
       support: hasAny(support) ? support : undefined,
+      // Computed inline rather than closing over the `isFoalPatient` binding
+      // below — that's declared after buildColumn is first called.
+      neonatal:
+        (patient.isFoal || patient.category === 'NEONATAL_FOAL') && hasAny(neonatal)
+          ? neonatal
+          : undefined,
     };
   };
 
@@ -684,6 +750,108 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
           />
         </>,
       )}
+
+      {/* Neonatal exam — Brewer & Koterba sepsis-score and Foal Survival
+          Score inputs. Adult-only patients never see this section; showing
+          it would invite charting inputs a colic case has no use for. */}
+      {isFoalPatient &&
+        section(
+          'neonatal',
+          <>
+            <OptionGrid
+              definition={COLD_EXTREMITIES}
+              value={coldExtremitiesOpt}
+              onChange={setColdExtremitiesOpt}
+              previous={
+                latest?.neonatal?.coldExtremities === undefined
+                  ? undefined
+                  : latest.neonatal.coldExtremities
+                    ? 'Cold'
+                    : 'Warm'
+              }
+            />
+            <OptionGrid
+              definition={HYPOTONIA}
+              value={hypotoniaOpt}
+              onChange={setHypotoniaOpt}
+              previous={
+                latest?.neonatal?.hypotonia === 'MILD'
+                  ? 'Mild hypotonia'
+                  : latest?.neonatal?.hypotonia === 'SEVERE'
+                    ? 'Severe hypotonia'
+                    : latest?.neonatal?.hypotonia === 'NONE'
+                      ? 'Normal'
+                      : undefined
+              }
+            />
+            <OptionGrid
+              definition={PETECHIAE}
+              value={petechiaeOpt}
+              onChange={setPetechiaeOpt}
+              previous={
+                latest?.neonatal?.petechiae === undefined
+                  ? undefined
+                  : latest.neonatal.petechiae
+                    ? 'Present'
+                    : 'Absent'
+              }
+            />
+
+            <div>
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <span className="font-label-caps text-xs text-[#434655]">
+                  Infectious / inflammatory sites
+                </span>
+                {infectiousSites.length > 0 && (
+                  <span className="font-derived-value text-[11px] bg-[#eff4ff] text-[#434655] px-2 py-0.5 rounded border border-[#E2E8F0]">
+                    {infectiousSites.length} selected
+                  </span>
+                )}
+              </div>
+              <div role="group" aria-label="Infectious sites" className="flex flex-wrap gap-2">
+                {siteOptions.map((site) => {
+                  const active = infectiousSites.includes(site);
+                  return (
+                    <button
+                      key={site}
+                      type="button"
+                      onClick={() => toggleSite(site)}
+                      aria-pressed={active}
+                      className={`px-3 py-1.5 rounded-full text-xs font-body-md border transition ${
+                        active
+                          ? 'bg-[#DB2777]/10 border-[#DB2777] text-[#DB2777]'
+                          : 'bg-white border-[#c4c5d7] text-[#434655] hover:bg-[#eff4ff]'
+                      }`}
+                    >
+                      {site}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <input
+                  value={newSite}
+                  onChange={(e) => setNewSite(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addSite();
+                    }
+                  }}
+                  placeholder="Add another site…"
+                  className="flex-1 border border-[#c4c5d7] rounded px-2 py-1.5 text-sm focus:outline-none focus:border-[#DB2777]"
+                />
+                <button
+                  type="button"
+                  onClick={addSite}
+                  className="px-3 py-1.5 text-xs font-label-caps bg-white border border-[#c4c5d7] rounded text-[#434655] hover:bg-[#eff4ff]"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </>,
+        )}
 
       {/* Save */}
       <div className="fixed bottom-16 lg:bottom-6 left-0 right-0 max-w-2xl mx-auto px-4 z-30">

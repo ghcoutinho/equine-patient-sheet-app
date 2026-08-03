@@ -392,3 +392,23 @@ export const BLAND_TAP_CAVEAT =
 
 export const TIME_IS_TISSUE_CAVEAT =
   'Beyond about four hours of strangulation, resection is the expectation rather than the exception. Decision delay is measured in dead intestine.';
+
+/* ------------------------------------------------------------------ */
+/* Fluid balance — insensible loss                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Insensible loss (respiratory + cutaneous + faecal water) cannot be measured
+ * at the bedside — it only ever exists as an estimate. This range is a ward
+ * convention supplied by the attending clinician, not a published figure, and
+ * not yet wired to any panel. Not used by any function today; recorded here
+ * so it's captured for the fluid-balance panel once that is built. When it
+ * is, the balance must render as a range with this component labelled, per
+ * rule 1 — never as a single confident number built on an estimate.
+ */
+export const INSENSIBLE_LOSS = {
+  minMlPerKgPerDay: 10.4,
+  maxMlPerKgPerDay: 33.6,
+  source: 'Ward convention — supplied by the attending clinician, not a published figure.',
+  provenance: 'ward-convention' as const,
+} as const;

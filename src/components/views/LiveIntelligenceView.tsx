@@ -77,6 +77,7 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
     value: number;
     interpretation: string;
     unit: string;
+    source: string;
   }[];
 
   return (
@@ -175,15 +176,21 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
             {/* Biomarkers only appear once one has been entered */}
             {biomarkerRows.length > 0 && (
               <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4">
-                <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-3">
+                <h2 className="font-headline text-base font-bold text-[#0b1c30]">
                   Inflammatory biomarkers
                 </h2>
+                <p className="font-derived-value text-xs text-[#747686] mb-3">
+                  Neonatal foal sepsis markers — hover a value for the study and cut-off it applies.
+                </p>
                 <ul className="divide-y divide-[#E2E8F0]">
                   {biomarkerRows.map((b) => (
                     <li key={b.label} className="flex justify-between items-center py-2">
                       <span className="font-body-md text-sm text-[#0b1c30]">{b.label}</span>
                       <span className="flex items-center gap-2">
-                        <span className="font-derived-value text-sm font-bold text-[#0b1c30]">
+                        <span
+                          className="font-derived-value text-sm font-bold text-[#0b1c30]"
+                          title={b.source}
+                        >
                           {b.value} {b.unit}
                         </span>
                         <span
