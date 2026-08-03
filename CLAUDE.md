@@ -108,6 +108,52 @@ which is part of why the formulary "looked half its size".
 
 ---
 
+## Architecture principles
+
+The nine rules above are defect-derived — each one records something this
+codebase actually shipped wrong. The five principles below are different in
+kind: they are forward-looking design commitments, adopted 2026-08-03, for
+turning this from an electronic record into a patient-safety device. They are
+kept separate so the rules above keep their meaning as a defect ledger.
+
+**A. Every datum carries who and when.** Any write — a round, a lab value, a
+dose given, a rate change — stamps `[timestamp + logged user]` at the point of
+entry, not at save time. This is what makes the evolution timeline and the
+audit trail possible, and it is the reason "Unattributed" is a bug rather than
+a default (see rule 2).
+
+**B. Data belongs to the episode, not the screen.** The record is keyed on
+patient + admission, and it does not matter whether lactate was entered from
+the surgery screen or the lab screen — it lands in the same place. A screen is
+a view onto the episode, never its own store. A readmission is a new episode,
+not an append to the last one.
+
+**C. Prescribing and administering are different acts.** The clinician sets
+drug, dose and interval; the ward records what actually went in, when, and by
+whom. They are separate objects with separate permissions and separate
+timestamps. A dose outside its window is soft-stopped — blocked by default,
+overridable with a logged reason — because an absolute block just moves the
+error into false charting.
+
+**D. A continuous infusion is not a dose.** A CRI has a start, a rate, rate
+*changes*, bag changes and an end — not a schedule of administrations. Volume
+infused is derived from rate × elapsed time, never typed. This is why rate must
+be structured (value + unit), not free text.
+
+**E. Scores recompute, never re-type.** A scoring panel pulls the most recent
+valid value for each input and recalculates. No score asks the clinician to
+enter a number the record already holds, and no score result is stored as a
+literal — see `buildPanels` in `utils/intelligence.ts`, and the
+`casScoreConfirmed` field that was deleted for breaking this.
+
+**Storage note.** These are being built single-device first, with the data
+model shaped so a backend drops in without rework. Cross-device duplicate-dose
+prevention and any ward-wide live view are *blocked* until then, not merely
+unbuilt: `localStorage` gives two tablets two separate databases, and a safety
+interlock that only one tablet can see is worse than none.
+
+---
+
 ## Stack and commands
 
 React 19 · Vite 8 · TypeScript 6 · Tailwind v4 (`@tailwindcss/vite`) · oxlint

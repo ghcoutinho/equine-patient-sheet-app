@@ -629,7 +629,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "vasopressin",
+    "id": "vasopressin_vasodilatory_shock",
     "name": "Vasopressin",
     "brandName": "Pitressin",
     categories: ["Cardiovascular"],
@@ -698,7 +698,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "epinephrine",
+    "id": "epinephrine_anaphylaxis",
     "name": "Epinephrine",
     "brandName": "Adrenalin",
     categories: ["Cardiovascular"],
@@ -793,7 +793,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "prednisolone",
+    "id": "prednisolone_respiratory",
     "name": "Prednisolone",
     "brandName": "",
     categories: ["Respiratory"],
@@ -955,7 +955,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "furosemide",
+    "id": "furosemide_eiph",
     "name": "Furosemide",
     "brandName": "Salix",
     categories: ["Respiratory"],
@@ -1464,7 +1464,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "furosemide",
+    "id": "furosemide_diuretic",
     "name": "Furosemide",
     "brandName": "Salix",
     categories: ["Urinary"],
@@ -1557,7 +1557,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "dantrolene",
+    "id": "dantrolene_urethral",
     "name": "Dantrolene",
     "brandName": "Dantrium",
     categories: ["Urinary"],
@@ -1672,7 +1672,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "acetazolamide",
+    "id": "acetazolamide_hypp",
     "name": "Acetazolamide",
     "brandName": "Diamox",
     categories: ["Urinary"],
@@ -1952,7 +1952,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "prednisolone",
+    "id": "prednisolone_immunosuppressive",
     "name": "Prednisolone",
     "brandName": "",
     categories: ["Immunosuppressive / Anti-inflammatory (Steroids/Others)"],
@@ -2184,7 +2184,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "dantrolene",
+    "id": "dantrolene_rhabdomyolysis",
     "name": "Dantrolene",
     "brandName": "Dantrium",
     categories: ["Muscle Relaxants / Myopathy"],
@@ -2323,7 +2323,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "ADULT"
   },
   {
-    "id": "acetazolamide",
+    "id": "acetazolamide_hypp_maintenance",
     "name": "Acetazolamide",
     "brandName": "Diamox",
     categories: ["Muscle Relaxants / Myopathy"],
@@ -3488,7 +3488,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "FOAL"
   },
   {
-    "id": "epinephrine",
+    "id": "epinephrine_cardiac_arrest",
     "name": "Epinephrine",
     "brandName": "Adrenalin",
     categories: ["Sedation Reversal / Emergency"],
@@ -3511,7 +3511,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "vasopressin",
+    "id": "vasopressin_cpr",
     "name": "Vasopressin",
     "brandName": "Pitressin",
     categories: ["Sedation Reversal / Emergency"],
@@ -3557,7 +3557,7 @@ export const EXPANDED_FORMULARY: DrugFormularyItem[] = [
     "patientType": "BOTH"
   },
   {
-    "id": "atropine_bradycardia",
+    "id": "atropine_bradycardia_emergency",
     "name": "Atropine",
     "brandName": "",
     categories: ["Sedation Reversal / Emergency"],

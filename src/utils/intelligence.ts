@@ -41,22 +41,48 @@ const numeric = (v: number | 'Pending' | undefined): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
 /**
- * Total calcium, mg/dL, from the most recently collected full lab panel.
+ * A parameter from the most recently collected full lab panel.
  *
- * The flowsheet round only charts ionised calcium (mmol/L) — a different
- * analyte in different units, deliberately not fed to any threshold expecting
- * total calcium (see the note below). Total calcium only exists in the full
- * `LabPanel` system, so this is the one scoring input `columnToEntry` sources
- * from somewhere other than the current round.
+ * Some scoring inputs are not part of the quick round. Total calcium is the
+ * clearest case — the round charts *ionised* calcium in mmol/L, a different
+ * analyte in different units — but band neutrophils, fibrinogen and blood gas
+ * live only in the panel too. Those come from here rather than being
+ * re-entered, per principle E.
  */
-function latestTotalCalcium(patient: Patient): number | undefined {
+function latestPanelValue(patient: Patient, parameterId: string): number | undefined {
   const panels = patient.labPanels ?? [];
   if (!panels.length) return undefined;
   const latest = [...panels].sort(
     (a, b) => new Date(b.collectedAt).getTime() - new Date(a.collectedAt).getTime(),
   )[0];
-  const v = latest.values.lab_calcium;
+  const v = latest.values[parameterId];
   return Number.isFinite(v) ? v : undefined;
+}
+
+/** Thousands per microlitre → per microlitre. */
+const K_PER_UL_TO_PER_UL = 1000;
+
+/**
+ * White cell count, converted to cells/µL for the scoring engines.
+ *
+ * The app charts WBC in K/µL — `RoundEntryView`'s field is labelled "White cell
+ * count (K/µL)" and `lab_wbc` is K/µL — but every published threshold the score
+ * panels implement is written in cells/µL (SIRS `< 5,000` / `> 12,500`, Brewer
+ * & Koterba `< 2000`). The two conventions coexisted in this codebase with
+ * nothing converting between them, and `columnToEntry` simply never mapped WBC
+ * at all, so the SIRS white-cell criterion could never score — which quietly
+ * masked the collision. Mapping it without this conversion would read a charted
+ * 9.0 K/µL as 9 cells/µL and call every patient profoundly leukopenic.
+ *
+ * `ColicReadouts` and `ENDOTOXEMIA.leukopeniaBelow` deliberately stay in K/µL;
+ * they read the charted value directly and are not affected by this.
+ */
+function wbcPerMicrolitre(
+  patient: Patient,
+  labs: FlowsheetColumn['labs'] | undefined,
+): number | undefined {
+  const charted = numeric(labs?.wbc) ?? latestPanelValue(patient, 'lab_wbc');
+  return charted === undefined ? undefined : charted * K_PER_UL_TO_PER_UL;
 }
 
 /** Map a charted round onto the flat record the scoring engines consume. */
@@ -64,8 +90,8 @@ export function columnToEntry(
   patient: Patient,
   column: FlowsheetColumn | undefined,
 ): Partial<FlowsheetEntry> {
-  const calcium = latestTotalCalcium(patient);
-  if (!column) return { calcium };
+  const calcium = latestPanelValue(patient, 'lab_calcium');
+  if (!column) return { calcium, wbc: wbcPerMicrolitre(patient, undefined) };
   const { vitals, gi, labs } = column;
 
   const gutSounds = gi?.gutSounds ? summariseGutSounds(gi.gutSounds) : undefined;
@@ -92,6 +118,8 @@ export function columnToEntry(
     pcv: numeric(labs?.pcv),
     glucose: numeric(labs?.glucose),
     igg: numeric(labs?.igg),
+    // Charted in K/µL, scored in cells/µL — see wbcPerMicrolitre.
+    wbc: wbcPerMicrolitre(patient, labs),
 
     gastricRefluxVol: gi?.refluxVolumeL,
     gutSounds: gutSounds
@@ -106,9 +134,10 @@ export function columnToEntry(
     abdominalUltrasound: normalOrAbnormal('flashUltrasound', gi?.flashUltrasound),
     rectalExam: normalOrAbnormal('rectalExam', gi?.rectalExam),
 
-    // Total calcium, not the round's ionised calcium (mmol/L) — see
-    // latestTotalCalcium. Feeding ionised mmol/L into a total-calcium mg/dL
-    // threshold would score every patient abnormal, so the two stay separate.
+    // Total calcium from the lab panel, not the round's ionised calcium
+    // (mmol/L) — see latestPanelValue. Feeding ionised mmol/L into a
+    // total-calcium mg/dL threshold would score every patient abnormal, so the
+    // two stay separate.
     calcium,
   };
 }

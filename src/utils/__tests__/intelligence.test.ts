@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { FlowsheetColumn, FlowsheetEntry, Patient } from '../../types';
-import { columnToEntry, casPanel } from '../intelligence';
+import { columnToEntry, casPanel, sirsPanel } from '../intelligence';
 
 /**
  * The bridge from a charted round to the scoring engines.
@@ -115,6 +115,64 @@ describe('columnToEntry — total calcium from the lab panel, not the round', ()
     // threshold would misclassify every patient charted with it.
     const e = columnToEntry(patient(), column({ labs: { ionizedCalcium: 1.3 } }));
     expect(e.calcium).toBeUndefined();
+  });
+});
+
+describe('columnToEntry — WBC is charted in K/µL and scored in cells/µL', () => {
+  it('converts a charted 9.0 K/µL to 9,000 cells/µL', () => {
+    const e = columnToEntry(patient(), column({ labs: { wbc: 9.0 } }));
+    expect(e.wbc).toBe(9000);
+  });
+
+  it('a normal 9.0 K/µL does NOT read as leukopenic', () => {
+    // The trap: mapped without conversion, 9 would fall under the < 5,000
+    // SIRS threshold and score every ordinary patient as profoundly
+    // leukopenic. This is the assertion that fails if the conversion is
+    // ever removed.
+    const e = columnToEntry(patient({ isFoal: false }), column({ labs: { wbc: 9.0 } }));
+    const wbcCriterion = sirsPanel(e).criteria.find((c) => c.id === 'wbc');
+    expect(wbcCriterion?.points).toBe(0);
+  });
+
+  it('a genuinely leukopenic 4.0 K/µL does score the SIRS criterion', () => {
+    const e = columnToEntry(patient({ isFoal: false }), column({ labs: { wbc: 4.0 } }));
+    expect(e.wbc).toBe(4000);
+    expect(sirsPanel(e).criteria.find((c) => c.id === 'wbc')?.points).toBe(1);
+  });
+
+  it('a leukocytosis of 13.0 K/µL scores it too', () => {
+    const e = columnToEntry(patient({ isFoal: false }), column({ labs: { wbc: 13.0 } }));
+    expect(sirsPanel(e).criteria.find((c) => c.id === 'wbc')?.points).toBe(1);
+  });
+
+  it('falls back to the lab panel when the round has no WBC', () => {
+    const p = patient({
+      labPanels: [
+        { id: 'l1', collectedAt: '2026-07-31T08:00:00Z', values: { lab_wbc: 6.2 } },
+      ],
+    });
+    expect(columnToEntry(p, column()).wbc).toBe(6200);
+  });
+
+  it('prefers the round over the lab panel, the round being fresher', () => {
+    const p = patient({
+      labPanels: [
+        { id: 'l1', collectedAt: '2026-07-31T08:00:00Z', values: { lab_wbc: 6.2 } },
+      ],
+    });
+    expect(columnToEntry(p, column({ labs: { wbc: 11.0 } })).wbc).toBe(11000);
+  });
+
+  it('stays uncharted rather than scoring as normal when nowhere has it', () => {
+    const e = columnToEntry(patient({ isFoal: false }), column());
+    expect(e.wbc).toBeUndefined();
+    const panel = sirsPanel(e);
+    expect(panel.criteria.find((c) => c.id === 'wbc')?.points).toBeUndefined();
+    expect(panel.score.isExact).toBe(false);
+  });
+
+  it('respects a charted zero', () => {
+    expect(columnToEntry(patient(), column({ labs: { wbc: 0 } })).wbc).toBe(0);
   });
 });
 
