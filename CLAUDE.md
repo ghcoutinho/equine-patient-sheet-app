@@ -250,7 +250,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 231 tests across 9 files in
+own — `vite.config.ts` is enough). 250 tests across 10 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -285,26 +285,46 @@ class of defect a unit test catches and a reviewer's eye does not):
   455/1,104 µg/L, 0.0928).
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
-`callSurgeonTriggers.ts`, `prognosis.ts`, `neonatalSepsisScore.ts`,
-`gutSounds.ts`, `manure.ts`, `referenceLookup.ts`, `formNavigation.ts`,
-`persistence.ts` (localStorage read/write and schema versioning), every
-`data/*.ts` catalogue other than `colicThresholds.ts` and `patientIdentity.ts`,
-and all of `components/` — no view has ever been rendered under test. Rule 7
-still applies: passing tests are not evidence a value reaches the screen.
+`callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
+`referenceLookup.ts`, `formNavigation.ts`, `persistence.ts` (localStorage
+read/write and schema versioning), every `data/*.ts` catalogue other than
+`colicThresholds.ts` and `patientIdentity.ts`, and all of `components/` — no
+view has ever been rendered under test. Rule 7 still applies: passing tests
+are not evidence a value reaches the screen.
+- `neonatalSepsisScore.ts` — every published band edge for all twelve
+  criteria, the blood-gas item's both-values-together rule, the petechiae/
+  injected-membranes OR, and that a normal dam-history *note* no longer
+  scores as an abnormal *finding*.
 
 ### Orphaned modules — real work nothing reaches
 
-`utils/neonatalSepsisScore.ts` (Brewer & Koterba, ~150 lines of genuine clinical
-logic — has the charting inputs now: `bands`/`fibrinogen`/`pao2`/`paco2` are
-sourced from the lab panel and `coldExtremities`/`hypotonia`/`petechiae`/
-`infectiousSitesCount` from the round's new Neonatal Exam section, but the
-file itself still needs the rewrite into the `ScorePanel` shape and the
-absolute-vs-percentage bands guess resolved before it can be wired in) ·
 `data/academicReferences.ts` (72 references, no view — ~15 are what the code
 actually cites, the rest is FHIR/software articles and blog-tier sources) ·
 `data/flowsheetRows.ts` (superseded — its SAA/NGAL/RPR and neonatal-exam
 fields are now real, type-checked fields on `LabField`/`NeonatalExamData`
 rather than this file's untyped spec; still unimported, safe to delete)
+
+`utils/neonatalSepsisScore.ts` was wired in (2026-08-03), the last of the
+three orphaned scoring modules. Rewritten into the `ScorePanel` shape and
+renders through the same shared `ScorePanelCard` as every other panel, in
+both Clinical Intelligence and `NeonatalAssessmentView`. Two defects fixed
+along the way, not just the wiring:
+- **The absolute-vs-percentage guess on band neutrophils is gone, not
+  resolved.** The old code had no way to know which the charted number was,
+  so it guessed ("under 50, assume it's a percentage of WBC"). `entry.bands`
+  is now always an absolute cells/µL count — converted at the same K/µL
+  boundary as WBC — so there's nothing left to guess.
+- **The history item no longer reads `patient.damHistory` for its *content*.**
+  It scored any non-empty dam-history text as abnormal, including a normal
+  foaling note — the check was presence-of-text, not what the text said. It
+  now reads `patient.abnormalPerinatalHistory`, a clinician judgement entered
+  in `NeonatalAssessmentView` next to gestation, and is split into two
+  criteria (perinatal history, prematurity) instead of one opaque combined
+  number, so the ledger shows which one actually contributed.
+
+Also dropped: a duplicate neonatal-SIRS count this file computed
+independently of `neonatalSirsPanel`, which already implements it and is
+already wired in — two engines computing the same four criteria, kept as one.
 
 `biomarkerEvaluator.ts` was wired into Clinical Intelligence (2026-08-03)
 without ever being able to receive data — SAA, NGAL and RPR were not

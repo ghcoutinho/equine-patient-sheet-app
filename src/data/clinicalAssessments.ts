@@ -318,6 +318,36 @@ export const PETECHIAE: AssessmentDefinition = {
   ],
 };
 
+/** Neonatal sepsis score item (Brewer & Koterba) — read from the differential, not counted. */
+export const TOXIC_NEUTROPHILS: AssessmentDefinition = {
+  id: 'toxicNeutrophils',
+  label: 'Toxic neutrophils',
+  family: 'neonatal',
+  prompt: 'Toxic granulation on the differential?',
+  columns: 2,
+  options: [
+    { value: 'Absent', severity: 'normal' },
+    { value: 'Present', severity: 'critical' },
+  ],
+};
+
+/**
+ * Neonatal sepsis score history item (Brewer & Koterba) — a clinician
+ * judgement on the perinatal history (dystocia, placentitis, previous foal
+ * loss), not inferred from whether a free-text dam-history note is empty.
+ */
+export const ABNORMAL_PERINATAL_HISTORY: AssessmentDefinition = {
+  id: 'abnormalPerinatalHistory',
+  label: 'Perinatal history',
+  family: 'neonatal',
+  prompt: 'Abnormal perinatal history?',
+  columns: 2,
+  options: [
+    { value: 'Normal', severity: 'normal' },
+    { value: 'Abnormal', severity: 'critical', hint: 'Dystocia, placentitis, previous foal loss' },
+  ],
+};
+
 export const ASSESSMENTS: AssessmentDefinition[] = [
   MUCOUS_MEMBRANES,
   MENTATION,
@@ -336,6 +366,8 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
   COLD_EXTREMITIES,
   HYPOTONIA,
   PETECHIAE,
+  TOXIC_NEUTROPHILS,
+  ABNORMAL_PERINATAL_HISTORY,
 ];
 
 const SEVERITY_BY_VALUE = new Map<string, AssessmentSeverity>();

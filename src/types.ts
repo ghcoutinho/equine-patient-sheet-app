@@ -148,6 +148,8 @@ export interface NeonatalExamData {
   hypotonia?: 'MILD' | 'SEVERE' | 'NONE';
   petechiae?: boolean;
   infectiousSites?: string[];
+  /** Toxic granulation on the differential — read from the smear, not a count. */
+  toxicNeutrophils?: boolean;
 }
 
 export interface FlowsheetColumn {
@@ -342,7 +344,15 @@ export interface Patient {
   admissionExam?: AdmissionPhysicalExam;
   gestationalAgeDays?: number;
   colostrumIntake?: 'ADEQUATE' | 'POOR' | 'NONE' | 'UNKNOWN';
+  /** Free-text note. Not read for scoring — see abnormalPerinatalHistory. */
   damHistory?: string;
+  /**
+   * Brewer & Koterba's history item (dystocia, placentitis, previous foal
+   * loss, etc.) — a clinician judgement, not inferred from damHistory being
+   * non-empty. The neonatal sepsis score previously scored any dam-history
+   * text as abnormal, including a normal foaling note.
+   */
+  abnormalPerinatalHistory?: boolean;
 }
 
 /**
@@ -408,22 +418,6 @@ export interface ScoreBounds {
   min: number;
   max: number;
   isExact: boolean;
-}
-
-export interface NeonatalSepsisResult {
-  brewerScore: ScoreBounds;
-  sirsCriteriaCount: ScoreBounds;
-  interpretation: 'LOW_RISK' | 'EQUIVOCAL' | 'HIGH_RISK';
-}
-
-export interface FoalSurvivalResult {
-  score: ScoreBounds;
-  survivalProbabilityRange: [number, number]; 
-}
-
-export interface AdultSepsisResult {
-  score: ScoreBounds;
-  interpretation: 'LOW_RISK' | 'POSSIBLE' | 'HIGHLY_PROBABLE';
 }
 
 export interface BiomarkerEvaluator {

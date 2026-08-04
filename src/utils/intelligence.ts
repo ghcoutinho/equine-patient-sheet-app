@@ -9,6 +9,7 @@ import { calculateScoreBounds } from './missingDataHandler';
 import { severityOf } from '../data/clinicalAssessments';
 import { summariseGutSounds } from './gutSounds';
 import { computeDerived } from './labs';
+import { neonatalSepsisPanel } from './neonatalSepsisScore';
 
 /**
  * The bridge between what is charted and what the scoring engines expect.
@@ -170,6 +171,7 @@ export function columnToEntry(
     coldExtremities: column.neonatal?.coldExtremities,
     hypotonia: column.neonatal?.hypotonia,
     petechiae: column.neonatal?.petechiae,
+    toxicNeutrophils: column.neonatal?.toxicNeutrophils,
     // The record keeps which sites (clinically useful — "umbilicus and both
     // hocks" matters for antimicrobial choice); the score only needs the count.
     infectiousSitesCount: column.neonatal?.infectiousSites?.length,
@@ -723,7 +725,7 @@ export function buildPanels(
   entry: Partial<FlowsheetEntry>,
 ): ScorePanel[] {
   return patient.isFoal
-    ? [neonatalSirsPanel(entry), foalSurvivalPanel(patient, entry)]
+    ? [neonatalSirsPanel(entry), foalSurvivalPanel(patient, entry), neonatalSepsisPanel(patient, entry)]
     : [sirsPanel(entry), giSeverityPanel(entry), casPanel(entry)];
 }
 

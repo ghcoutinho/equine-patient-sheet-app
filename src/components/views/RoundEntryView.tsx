@@ -47,6 +47,7 @@ import {
   RECTAL_EXAM,
   REFLUX_APPEARANCE,
   RESPONSE_TO_THERAPY,
+  TOXIC_NEUTROPHILS,
 } from '../../data/clinicalAssessments';
 
 interface RoundEntryViewProps {
@@ -166,6 +167,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [coldExtremitiesOpt, setColdExtremitiesOpt] = useState<string | undefined>();
   const [hypotoniaOpt, setHypotoniaOpt] = useState<string | undefined>();
   const [petechiaeOpt, setPetechiaeOpt] = useState<string | undefined>();
+  const [toxicNeutrophilsOpt, setToxicNeutrophilsOpt] = useState<string | undefined>();
   const [infectiousSites, setInfectiousSites] = useState<string[]>([]);
   const [siteOptions, setSiteOptions] = useState<string[]>(INFECTIOUS_SITE_OPTIONS);
   const [newSite, setNewSite] = useState('');
@@ -247,6 +249,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
               ? 'NONE'
               : undefined,
       petechiae: petechiaeOpt === undefined ? undefined : petechiaeOpt === 'Present',
+      toxicNeutrophils:
+        toxicNeutrophilsOpt === undefined ? undefined : toxicNeutrophilsOpt === 'Present',
       // An empty array reads as "not assessed", same as every other optional
       // field here — only a genuinely non-empty selection counts as charted.
       infectiousSites: infectiousSites.length > 0 ? infectiousSites : undefined,
@@ -792,6 +796,18 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
                 latest?.neonatal?.petechiae === undefined
                   ? undefined
                   : latest.neonatal.petechiae
+                    ? 'Present'
+                    : 'Absent'
+              }
+            />
+            <OptionGrid
+              definition={TOXIC_NEUTROPHILS}
+              value={toxicNeutrophilsOpt}
+              onChange={setToxicNeutrophilsOpt}
+              previous={
+                latest?.neonatal?.toxicNeutrophils === undefined
+                  ? undefined
+                  : latest.neonatal.toxicNeutrophils
                     ? 'Present'
                     : 'Absent'
               }

@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import type { Patient, ViewTab, FlowsheetColumn } from '../../types';
 import { latestColumn } from '../../utils/callSurgeonTriggers';
 import { columnToEntry, foalSurvivalPanel } from '../../utils/intelligence';
+import { neonatalSepsisPanel } from '../../utils/neonatalSepsisScore';
 import { newId } from '../../utils/treatments';
 import { ScorePanelCard } from '../ui/ScorePanelCard';
+import { OptionGrid } from '../ui/OptionGrid';
+import { ABNORMAL_PERINATAL_HISTORY } from '../../data/clinicalAssessments';
 
 interface NeonatalAssessmentViewProps {
   patient: Patient;
@@ -51,11 +54,19 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
 
   const latest = latestColumn(patient.flowsheetHistory);
   const entry = columnToEntry(patient, latest);
-  const panel = foalSurvivalPanel(patient, entry);
+  const survivalPanel = foalSurvivalPanel(patient, entry);
+  const sepsisPanel = neonatalSepsisPanel(patient, entry);
 
   const saveGestation = (days: number) => {
     setGestationDays(days);
     onUpdatePatient({ ...patient, gestationalAgeDays: days });
+  };
+
+  const saveAbnormalHistory = (value: string | undefined) => {
+    onUpdatePatient({
+      ...patient,
+      abnormalPerinatalHistory: value === undefined ? undefined : value === 'Abnormal',
+    });
   };
 
   const saveLabs = () => {
@@ -126,6 +137,18 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
               <span>Full term (340+)</span>
             </div>
           </div>
+
+          <OptionGrid
+            definition={ABNORMAL_PERINATAL_HISTORY}
+            value={
+              patient.abnormalPerinatalHistory === undefined
+                ? undefined
+                : patient.abnormalPerinatalHistory
+                  ? 'Abnormal'
+                  : 'Normal'
+            }
+            onChange={saveAbnormalHistory}
+          />
 
           {/* Extremities and infectious sites moved to the round */}
           <div className="p-3 bg-[#f8f9ff] rounded border border-[#E2E8F0]">
@@ -225,9 +248,10 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
           </div>
         </div>
 
-        {/* Right: the computed score — the same engine Clinical Intelligence uses */}
-        <div>
-          <ScorePanelCard panel={panel} onChart={() => onNavigate('assess')} />
+        {/* Right: the computed scores — the same engine Clinical Intelligence uses */}
+        <div className="space-y-4">
+          <ScorePanelCard panel={survivalPanel} onChart={() => onNavigate('assess')} />
+          <ScorePanelCard panel={sepsisPanel} onChart={() => onNavigate('assess')} />
         </div>
       </div>
     </div>
