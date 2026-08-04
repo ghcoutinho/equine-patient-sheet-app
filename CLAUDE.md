@@ -250,7 +250,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 250 tests across 10 files in
+own — `vite.config.ts` is enough). 257 tests across 11 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -283,26 +283,28 @@ class of defect a unit test catches and a reviewer's eye does not):
 - `biomarkerEvaluator.ts` — every SAA/NGAL/RPR cut-off against its cited
   paper, including the boundary values themselves (1,050/1,250 mg/L,
   455/1,104 µg/L, 0.0928).
+- `neonatalSepsisScore.ts` — every published band edge for all twelve
+  criteria, the blood-gas item's both-values-together rule, the petechiae/
+  injected-membranes OR, and that a normal dam-history *note* no longer
+  scores as an abnormal *finding*.
+- `academicReferences.ts` — no duplicate ids, every entry has a title and a
+  "used for", and every `sourceRefId` a `ScorePanel` sets resolves to a real
+  entry — a typo here fails a test instead of shipping a dead citation link.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
 `referenceLookup.ts`, `formNavigation.ts`, `persistence.ts` (localStorage
 read/write and schema versioning), every `data/*.ts` catalogue other than
-`colicThresholds.ts` and `patientIdentity.ts`, and all of `components/` — no
-view has ever been rendered under test. Rule 7 still applies: passing tests
-are not evidence a value reaches the screen.
-- `neonatalSepsisScore.ts` — every published band edge for all twelve
-  criteria, the blood-gas item's both-values-together rule, the petechiae/
-  injected-membranes OR, and that a normal dam-history *note* no longer
-  scores as an abnormal *finding*.
+`colicThresholds.ts`, `patientIdentity.ts` and `academicReferences.ts`, and
+all of `components/` — no view has ever been rendered under test. Rule 7
+still applies: passing tests are not evidence a value reaches the screen.
 
-### Orphaned modules — real work nothing reaches
+### Orphaned modules
 
-`data/academicReferences.ts` (72 references, no view — ~15 are what the code
-actually cites, the rest is FHIR/software articles and blog-tier sources) ·
-`data/flowsheetRows.ts` (superseded — its SAA/NGAL/RPR and neonatal-exam
-fields are now real, type-checked fields on `LabField`/`NeonatalExamData`
-rather than this file's untyped spec; still unimported, safe to delete)
+None remain. `data/flowsheetRows.ts` was deleted (2026-08-03) — superseded,
+its fields are now real, type-checked fields on `LabField`/`NeonatalExamData`.
+`data/academicReferences.ts` went from 72 entries to the 10 the code actually
+cites and gained a view (see Sources, below) — no longer orphaned either way.
 
 `utils/neonatalSepsisScore.ts` was wired in (2026-08-03), the last of the
 three orphaned scoring modules. Rewritten into the `ScorePanel` shape and
@@ -334,6 +336,25 @@ reads the already-derived `lab_rpr` instead of re-dividing RDW by platelets a
 second way, and every cut-off now traces to its paper (Hoeberg 2022, Laurberg
 2023, Scalco 2023) except the SAA "elevated" floor and the RPR "at risk"
 floor, which are labelled unsourced rather than attributed to one.
+
+`data/academicReferences.ts` was triaged from 72 entries to 10 (2026-08-03) —
+what a score panel or published threshold actually implements, not a reading
+list. Dropped: an AI-decision-support scoping review, several alternative
+sepsis-scoring papers this app doesn't implement, secondary write-ups of the
+same three biomarker papers already listed under one primary citation each,
+and a run of FHIR/healthcare-app-architecture articles unrelated to any
+clinical content. Kept, and newly added: Freeman and Blikslager as book
+entries, since `colicThresholds.ts` cites them constantly but they were never
+on the list at all. Two kept entries had the wrong first author — "Borchers"
+and "Dembek" — transcription errors against the actual papers (Laurberg and
+Scalco respectively), corrected rather than carried forward. `ScorePanel`
+gained `sourceRefId`, and a new **Sources** tab (`SourcesView.tsx`) renders
+the triaged list; a panel's citation chip is a link to its entry there when
+`sourceRefId` is set, plain text when it isn't (the GI severity ledger and
+neonatal SIRS panel are both deliberately uncited — nothing to link to).
+Reference intervals stay cited separately, next to the intervals they
+support, in `RANGE_SOURCES` in `data/ageStratifiedReferenceRanges.ts` — that
+registry was already doing this well and wasn't folded in.
 
 `utils/physiologicalValidator.ts` and `data/neonatalReferenceRanges.ts` were
 deleted (2026-07-31): the validator duplicated `prognosis.ts`'s cited cut-offs

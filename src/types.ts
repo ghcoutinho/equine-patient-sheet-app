@@ -39,7 +39,8 @@ export type ViewTab =
   | 'ranges'
   | 'patients'
   | 'meds'
-  | 'labs';
+  | 'labs'
+  | 'sources';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 

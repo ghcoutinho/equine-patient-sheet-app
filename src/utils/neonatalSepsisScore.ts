@@ -227,6 +227,7 @@ export function neonatalSepsisPanel(patient: Patient, entry: Partial<FlowsheetEn
     id: 'neonatal-sepsis',
     title: 'Neonatal sepsis score',
     source: 'Brewer & Koterba 1988 (Equine Vet J 20(1):18-22)',
+    sourceRefId: 'brewer-1988',
     score,
     criteria,
     severity: highRisk ? 'critical' : equivocal ? 'warning' : 'normal',

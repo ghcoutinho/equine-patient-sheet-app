@@ -106,6 +106,14 @@ export const NAV_ITEMS: NavItem[] = [
     hint: 'Published intervals by age class, with their source populations',
   },
   {
+    id: 'sources',
+    label: 'Sources',
+    shortLabel: 'Sources',
+    icon: 'menu_book',
+    group: 'reference',
+    hint: 'Every citation a score panel or threshold actually implements',
+  },
+  {
     id: 'dashboard',
     label: 'Patient Ward',
     shortLabel: 'Ward',

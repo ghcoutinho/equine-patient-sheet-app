@@ -27,10 +27,12 @@ const SEVERITY_TINT: Record<AssessmentSeverity, string> = {
   critical: 'bg-[#FEF2F2] border-[#B91C1C]/40',
 };
 
-export const ScorePanelCard: React.FC<{ panel: ScorePanel; onChart: () => void }> = ({
-  panel,
-  onChart,
-}) => {
+export const ScorePanelCard: React.FC<{
+  panel: ScorePanel;
+  onChart: () => void;
+  /** Navigate to the Sources tab. Omit to render the citation as plain text. */
+  onViewSource?: () => void;
+}> = ({ panel, onChart, onViewSource }) => {
   const accent = SEVERITY_ACCENT[panel.severity];
   const hasData = panelHasData(panel);
   const maxTotal = panel.criteria.reduce((s, c) => s + c.maxPoints, 0);
@@ -43,9 +45,20 @@ export const ScorePanelCard: React.FC<{ panel: ScorePanel; onChart: () => void }
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-headline text-base font-bold text-[#0b1c30]">{panel.title}</h2>
-            <span className="font-label-caps text-[10px] bg-[#d3e4fe] text-[#434655] border border-[#c4c5d7] px-1.5 py-0.5 rounded">
-              {panel.source}
-            </span>
+            {panel.sourceRefId && onViewSource ? (
+              <button
+                type="button"
+                onClick={onViewSource}
+                title="Open this citation in Sources"
+                className="font-label-caps text-[10px] bg-[#d3e4fe] text-[#0037b0] border border-[#c4c5d7] px-1.5 py-0.5 rounded underline hover:bg-[#e5eeff]"
+              >
+                {panel.source}
+              </button>
+            ) : (
+              <span className="font-label-caps text-[10px] bg-[#d3e4fe] text-[#434655] border border-[#c4c5d7] px-1.5 py-0.5 rounded">
+                {panel.source}
+              </span>
+            )}
           </div>
 
           {hasData ? (

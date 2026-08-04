@@ -120,7 +120,12 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
             <ColicReadouts patient={patient} latest={latest} previous={previous} />
 
             {panels.map((p) => (
-              <ScorePanelCard key={p.id} panel={p} onChart={() => onNavigate('assess')} />
+              <ScorePanelCard
+                key={p.id}
+                panel={p}
+                onChart={() => onNavigate('assess')}
+                onViewSource={() => onNavigate('sources')}
+              />
             ))}
 
             {/*

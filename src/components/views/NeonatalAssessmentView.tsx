@@ -250,8 +250,16 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
 
         {/* Right: the computed scores — the same engine Clinical Intelligence uses */}
         <div className="space-y-4">
-          <ScorePanelCard panel={survivalPanel} onChart={() => onNavigate('assess')} />
-          <ScorePanelCard panel={sepsisPanel} onChart={() => onNavigate('assess')} />
+          <ScorePanelCard
+            panel={survivalPanel}
+            onChart={() => onNavigate('assess')}
+            onViewSource={() => onNavigate('sources')}
+          />
+          <ScorePanelCard
+            panel={sepsisPanel}
+            onChart={() => onNavigate('assess')}
+            onViewSource={() => onNavigate('sources')}
+          />
         </div>
       </div>
     </div>

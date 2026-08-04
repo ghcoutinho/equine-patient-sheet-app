@@ -16,6 +16,7 @@ import { RoundEntryView } from './components/views/RoundEntryView';
 import { NeonatalAssessmentView } from './components/views/NeonatalAssessmentView';
 import { DoseCalculatorView } from './components/views/DoseCalculatorView';
 import { ReferenceRangesView } from './components/views/ReferenceRangesView';
+import { SourcesView } from './components/views/SourcesView';
 import { PatientManagementView } from './components/views/PatientManagementView';
 import { TreatmentsView } from './components/views/TreatmentsView';
 import { LabPanelView } from './components/views/LabPanelView';
@@ -171,6 +172,8 @@ export function App() {
           {currentTab === 'ranges' && (
             <ReferenceRangesView patient={activePatient} />
           )}
+
+          {currentTab === 'sources' && <SourcesView />}
 
           {currentTab === 'patients' && (
             <PatientManagementView

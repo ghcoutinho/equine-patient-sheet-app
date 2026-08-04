@@ -204,6 +204,14 @@ export interface ScorePanel {
   title: string;
   /** Where the thresholds come from. Never a citation the code does not implement. */
   source: string;
+  /**
+   * Id into data/academicReferences.ts, when the source is a specific paper
+   * on that list — lets the panel's citation link to its actual entry rather
+   * than just naming it. Undefined for book sources (Freeman/Blikslager are
+   * on the list too, but colicThresholds.ts's panels aren't ScorePanels) and
+   * for ward-convention panels, which have nothing to link to.
+   */
+  sourceRefId?: string;
   score: ScoreBounds;
   criteria: Criterion[];
   /** Plain-language reading of the score, or undefined when it is inconclusive. */
@@ -276,6 +284,7 @@ export function sirsPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
     id: 'sirs',
     title: 'SIRS criteria (adult)',
     source: 'Biondi et al. 2026',
+    sourceRefId: 'biondi-2026',
     score,
     criteria,
     severity: positive ? 'critical' : cannotExclude ? 'watch' : 'normal',
@@ -512,6 +521,7 @@ export function casPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
     id: 'cas',
     title: 'Colic assessment score (adult)',
     source: 'Farrell et al. 2021 (Front Vet Sci 8:697589)',
+    sourceRefId: 'farrell-2021',
     score,
     criteria,
     severity: diePredicted ? 'critical' : survivePredicted ? 'normal' : 'warning',
@@ -630,6 +640,7 @@ export function foalSurvivalPanel(
     id: 'foal-survival',
     title: 'Foal survival screen',
     source: 'Brewer & Koterba items, 0–6 as implemented',
+    sourceRefId: 'brewer-1988',
     score,
     criteria,
     severity: score.max <= 2 ? 'critical' : score.min >= 5 ? 'normal' : 'watch',
