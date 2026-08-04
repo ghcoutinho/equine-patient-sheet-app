@@ -194,9 +194,19 @@ message everywhere. Found in passing: `FlowsheetView`'s quick-add-column path
 wrote a column with no `recordedAt` or `recordedBy` at all; now timestamped
 and attributed like every other write path.
 
+Also shipped (2026-08-04): `PatientLifecycle` gained `AWAITING_ARRIVAL`. New
+Admission creates a patient in that state instead of `ACTIVE` — pre-registered,
+not yet physically here. `App.tsx`'s new `wardPatients` list filters it out of
+`DashboardView`/`ClinicalSuiteOverview` so a not-yet-arrived horse doesn't
+count toward "Active Cases"; `PatientManagementView` still shows every
+lifecycle state, with a matching filter tab. Its "Mark arrived" action
+(replacing "Reactivate" for this specific state) moves the patient to
+`ACTIVE`, opens the admission boundary at that moment rather than at
+registration time, and resets the stale "AWAITING ARRIVAL" `statusLabel` chip
+to "ADMITTED".
+
 Still open from this track: the `Recorded` envelope (`{at, by}`) as a shared
-type enforced structurally rather than by convention at each call site, and
-an `AWAITING_ARRIVAL` lifecycle state.
+type enforced structurally rather than by convention at each call site.
 
 ---
 
