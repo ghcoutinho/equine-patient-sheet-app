@@ -6,6 +6,7 @@ import { neonatalSepsisPanel } from '../../utils/neonatalSepsisScore';
 import { newId } from '../../utils/treatments';
 import { ScorePanelCard } from '../ui/ScorePanelCard';
 import { OptionGrid } from '../ui/OptionGrid';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { ABNORMAL_PERINATAL_HISTORY } from '../../data/clinicalAssessments';
 
 interface NeonatalAssessmentViewProps {
@@ -69,7 +70,11 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
     });
   };
 
+  // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
+  const hasClinician = !!clinician?.trim();
+
   const saveLabs = () => {
+    if (!hasClinician) return;
     if (glucoseValue === undefined && iggValue === undefined) return;
     const now = new Date();
     const column: FlowsheetColumn = {
@@ -79,7 +84,7 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
         .toString()
         .padStart(2, '0')}`,
       recordedAt: now.toISOString(),
-      recordedBy: clinician || 'Unattributed',
+      recordedBy: clinician || 'Unattributed', // saveLabs blocks the write until a clinician is set
       vitals: {},
       gi: {},
       labs: { glucose: glucoseValue, igg: iggValue },
@@ -240,11 +245,12 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
             <button
               type="button"
               onClick={saveLabs}
-              disabled={glucoseValue === undefined && iggValue === undefined}
+              disabled={(glucoseValue === undefined && iggValue === undefined) || !hasClinician}
               className="w-full min-h-[44px] rounded bg-[#6D28D9] text-white font-label-caps text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Save to flowsheet
             </button>
+            {!hasClinician && <ClinicianRequiredNotice className="text-center mt-1.5" />}
           </div>
         </div>
 

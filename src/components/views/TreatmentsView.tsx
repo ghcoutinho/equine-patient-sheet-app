@@ -14,6 +14,7 @@ import {
   type TreatmentStatus,
 } from '../../utils/treatments';
 import { DoseEntryPanel } from './DoseEntryPanel';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 
 interface TreatmentsViewProps {
   patient: Patient;
@@ -63,6 +64,9 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   const stopped = statuses.filter((s) => s.state === 'STOPPED');
   const visible = showStopped ? statuses : open;
 
+  // No clinician, no write — see CLAUDE.md rule 2 and Architecture principle A.
+  const hasClinician = !!clinician?.trim();
+
   const write = (treatments: Treatment[]) => {
     onUpdatePatient({ ...patient, treatments });
     setNow(new Date());
@@ -74,6 +78,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   };
 
   const recordGiven = (t: Treatment) => {
+    if (!hasClinician) return;
     const at = new Date();
     write(
       (patient.treatments ?? []).map((x) =>
@@ -96,6 +101,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   };
 
   const stopTreatment = (t: Treatment) => {
+    if (!hasClinician) return;
     const reason = window.prompt(`Reason for stopping ${t.drug}? (optional)`) ?? undefined;
     write(
       (patient.treatments ?? []).map((x) =>
@@ -142,6 +148,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                 ? 'nothing running'
                 : `${open.length} order${open.length === 1 ? '' : 's'} open`}
             </p>
+            {!hasClinician && <ClinicianRequiredNotice className="mt-1" />}
           </div>
 
           <div className="flex items-center gap-2">
@@ -216,6 +223,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                     status={s}
                     now={now}
                     expanded={expanded === s.treatment.id}
+                    disabled={!hasClinician}
                     onToggle={() =>
                       setExpanded(expanded === s.treatment.id ? null : s.treatment.id)
                     }
@@ -368,7 +376,9 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                       {u.ordinal === 1 && (
                         <button
                           onClick={() => recordGiven(u.treatment)}
-                          className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex-shrink-0"
+                          disabled={!hasClinician}
+                          title={!hasClinician ? 'Set your name in the top bar before recording a dose' : undefined}
+                          className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Given
                         </button>
@@ -445,6 +455,8 @@ interface RowProps {
   status: TreatmentStatus;
   now: Date;
   expanded: boolean;
+  /** No clinician set — Given/Stop are disabled; Resume/Remove aren't attribution writes. */
+  disabled: boolean;
   onToggle: () => void;
   onGiven: () => void;
   onStop: () => void;
@@ -456,6 +468,7 @@ const TreatmentRow: React.FC<RowProps> = ({
   status,
   now,
   expanded,
+  disabled,
   onToggle,
   onGiven,
   onStop,
@@ -516,7 +529,9 @@ const TreatmentRow: React.FC<RowProps> = ({
           {status.state !== 'STOPPED' && t.kind === 'MEDICATION' && (
             <button
               onClick={onGiven}
-              className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex items-center gap-1"
+              disabled={disabled}
+              title={disabled ? 'Set your name in the top bar before recording a dose' : undefined}
+              className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-sm">check</span>
               <span className="hidden sm:inline">Given</span>
@@ -525,7 +540,9 @@ const TreatmentRow: React.FC<RowProps> = ({
           {status.state !== 'STOPPED' ? (
             <button
               onClick={onStop}
-              className="px-2.5 py-1 text-xs font-label-caps border border-[#B91C1C]/40 text-[#B91C1C] rounded hover:bg-[#B91C1C]/5"
+              disabled={disabled}
+              title={disabled ? 'Set your name in the top bar before stopping an order' : undefined}
+              className="px-2.5 py-1 text-xs font-label-caps border border-[#B91C1C]/40 text-[#B91C1C] rounded hover:bg-[#B91C1C]/5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Stop
             </button>

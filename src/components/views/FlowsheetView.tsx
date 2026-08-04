@@ -11,6 +11,7 @@ import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { BODY_SYSTEM_META } from '../../data/bodySystems';
 import { computeDue, DUE_STYLES, TASK_KIND_ICON, markDone } from '../../utils/schedule';
 import { Sparkline } from '../ui/Sparkline';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 
 /**
  * Series plotted in the trend rail. Reference bounds are the adult intervals
@@ -114,6 +115,9 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   /** Position within flowsheetHistory — edit/delete always act on the real column, not its position in the filtered view. */
   const realIndex = (col: FlowsheetColumn) => patient.flowsheetHistory.indexOf(col);
 
+  // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
+  const hasClinician = !!clinician?.trim();
+
   const due = computeDue(patient.schedule, now);
 
   const handleMarkDone = (taskId: string) => {
@@ -143,13 +147,14 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   const num = (v: string) => (v.trim() === '' ? undefined : Number.isFinite(Number(v)) ? Number(v) : undefined);
 
   const saveEditRound = (idx: number) => {
+    if (!hasClinician) return;
     const c = patient.flowsheetHistory[idx];
     const isFoal = patient.isFoal || patient.category === 'NEONATAL_FOAL';
     const t = num(editDraft.temperature);
     const updated: FlowsheetColumn = {
       ...c,
       time: editDraft.time || c.time,
-      editedBy: clinician || 'Unattributed',
+      editedBy: clinician,
       editedAt: new Date().toISOString(),
       vitals: {
         ...c.vitals,
@@ -174,13 +179,15 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   const [isAddingEntry, setIsAddingEntry] = useState(false);
 
   const handleAddNewTimepoint = () => {
-    if (!newHR && !newTemp && !newReflux && !newLactate) return;
+    if ((!newHR && !newTemp && !newReflux && !newLactate) || !hasClinician) return;
 
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
 
     const newColumn: FlowsheetColumn = {
       time: timeStr,
+      recordedAt: now.toISOString(),
+      recordedBy: clinician,
       vitals: {
         heartRate: newHR ? parseFloat(newHR) : undefined,
         temperatureC: newTemp ? parseFloat(newTemp) : undefined,
@@ -480,14 +487,16 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                   className="w-full min-h-[40px] px-2 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
                 />
               </label>
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-2 mt-3 items-center">
                 <button
                   type="button"
                   onClick={() => saveEditRound(editingIdx)}
-                  className="min-h-[40px] px-4 rounded bg-[#0037b0] text-white font-label-caps text-xs font-bold"
+                  disabled={!hasClinician}
+                  className="min-h-[40px] px-4 rounded bg-[#0037b0] text-white font-label-caps text-xs font-bold disabled:bg-[#c4c5d7] disabled:cursor-not-allowed"
                 >
                   Save changes
                 </button>
+                {!hasClinician && <ClinicianRequiredNotice />}
                 <button
                   type="button"
                   onClick={() => setEditingIdx(null)}
@@ -904,12 +913,14 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
             {/* Quick Action Footer for Adding Data */}
             {isAddingEntry && (
               <div className="p-3 bg-[#e5eeff] border-t border-[#E2E8F0] flex justify-end items-center gap-2">
+                {!hasClinician && <ClinicianRequiredNotice />}
                 <span className="text-xs font-derived-value text-[#434655]">
                   New entry ready to save
                 </span>
                 <button
                   onClick={handleAddNewTimepoint}
-                  className="bg-[#0037b0] hover:bg-[#1d4ed8] text-white text-xs font-label-caps px-4 py-1.5 rounded shadow-sm font-bold"
+                  disabled={!hasClinician}
+                  className="bg-[#0037b0] hover:bg-[#1d4ed8] disabled:bg-[#c4c5d7] disabled:cursor-not-allowed text-white text-xs font-label-caps px-4 py-1.5 rounded shadow-sm font-bold"
                 >
                   Save Column Entry
                 </button>

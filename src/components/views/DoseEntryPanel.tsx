@@ -9,6 +9,7 @@ import {
   concentrationUnitOptions,
 } from '../../utils/doseCalculation';
 import { ROUTES, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 
 export interface DoseEntryPanelProps {
   patient: Patient;
@@ -188,8 +189,11 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
     setTimeout(() => setAppliedNotice(null), 4000);
   };
 
+  // No clinician, no write — see CLAUDE.md rule 2 and Architecture principle A.
+  const hasClinician = !!clinician?.trim();
+
   const addFromFormulary = () => {
-    if (!selected || !result) return;
+    if (!selected || !result || !hasClinician) return;
     const iv = Number(intervalHours);
     const treatment: Treatment = {
       id: newId('tx'),
@@ -213,7 +217,7 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
 
   const addManually = () => {
     const name = manualName.trim();
-    if (!name) return;
+    if (!name || !hasClinician) return;
     const iv = Number(intervalHours);
     const treatment: Treatment = {
       id: newId('tx'),
@@ -808,7 +812,7 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
         <button
           type="button"
           onClick={mode === 'formulary' ? addFromFormulary : addManually}
-          disabled={mode === 'formulary' ? !selected || !result : !manualName.trim()}
+          disabled={(mode === 'formulary' ? !selected || !result : !manualName.trim()) || !hasClinician}
           className="w-full py-2.5 rounded font-label-caps text-xs font-bold text-white shadow-sm flex items-center justify-center gap-2 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ backgroundColor: mode === 'formulary' ? accent : '#0037b0' }}
         >
@@ -821,6 +825,7 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
                 : 'Add to the treatment sheet'}
           </span>
         </button>
+        {!hasClinician && <ClinicianRequiredNotice className="text-center" />}
 
         <p className="font-derived-value text-[11px] text-[#747686] text-center">
           Decision support only — verify every dose against your own formulary before

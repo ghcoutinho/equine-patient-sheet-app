@@ -15,6 +15,7 @@ import {
 import { useEnterAdvance } from '../../utils/formNavigation';
 import { clockTime, dayLabel, newId } from '../../utils/treatments';
 import { patientAge } from '../../data/patientIdentity';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 
 interface LabPanelViewProps {
   patient: Patient;
@@ -105,6 +106,9 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
 
   const write = (labPanels: LabPanel[]) => onUpdatePatient({ ...patient, labPanels });
 
+  // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
+  const hasClinician = !!clinician?.trim();
+
   const startNew = () => {
     setDraft({});
     setCollectedAt(isoLocal(new Date()));
@@ -124,13 +128,13 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
   };
 
   const save = () => {
-    if (enteredCount === 0) return;
+    if (enteredCount === 0 || !hasClinician) return;
     const base = {
       collectedAt: new Date(collectedAt).toISOString(),
       sampleType,
       values: numericDraft,
       note: note.trim() || undefined,
-      recordedBy: clinician || 'Unattributed',
+      recordedBy: clinician || 'Unattributed', // save() blocks the write until a clinician is set
     };
     if (editingId === 'new') {
       const panel: LabPanel = { id: newId('lab'), ...base };
@@ -322,11 +326,12 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
               </button>
               <button
                 onClick={save}
-                disabled={enteredCount === 0}
+                disabled={enteredCount === 0 || !hasClinician}
                 className="px-4 py-1.5 text-xs font-label-caps bg-[#0037b0] text-white rounded hover:bg-[#1d4ed8] disabled:opacity-40"
               >
                 Save panel
               </button>
+              {!hasClinician && <ClinicianRequiredNotice className="self-center" />}
             </div>
           </div>
         ) : viewing ? (

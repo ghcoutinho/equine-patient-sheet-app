@@ -21,6 +21,7 @@ import {
 import { GutSoundsQuadrant } from '../ui/GutSoundsQuadrant';
 import { OptionGrid } from '../ui/OptionGrid';
 import { ManureRecorder } from '../ui/ManureRecorder';
+import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { DEFAULT_GUT_SOUNDS, summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { latestColumn } from '../../utils/admission';
@@ -260,7 +261,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       id: `${now.getTime()}`,
       time: timeStr,
       recordedAt: now.toISOString(),
-      recordedBy: clinician || 'Unattributed',
+      recordedBy: clinician || 'Unattributed', // buildColumn() also drives the live preview, where clinician may not be set yet — handleSaveRound blocks the actual write until it is
       vitals: {
         heartRate: toNumber(hr),
         temperatureC: !patient.isFoal ? numTemp : undefined,
@@ -294,7 +295,12 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   // `latest` is the previous charted round; the draft is the one being typed.
   const liveTriggers = evaluateCallSurgeonTriggers(draft, undefined, latest);
 
+  // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
+  // "Unattributed" was a bug, not a default; the block below has no override.
+  const hasClinician = !!clinician?.trim();
+
   const handleSaveRound = () => {
+    if (!hasClinician) return;
     const newColumn = buildColumn();
 
     // SIRS flag from what was actually charted this round.
@@ -872,11 +878,13 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
         <button
           type="button"
           onClick={handleSaveRound}
-          className="w-full bg-[#0037b0] hover:bg-[#1d4ed8] text-white py-3.5 rounded-lg font-label-caps text-sm font-bold shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2"
+          disabled={!hasClinician}
+          className="w-full bg-[#0037b0] hover:bg-[#1d4ed8] disabled:bg-[#c4c5d7] disabled:cursor-not-allowed text-white py-3.5 rounded-lg font-label-caps text-sm font-bold shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2"
         >
           <span className="material-symbols-outlined text-xl">save</span>
           <span>SAVE ROUND ASSESSMENT</span>
         </button>
+        {!hasClinician && <ClinicianRequiredNotice className="text-center mt-1.5" />}
       </div>
     </div>
   );
