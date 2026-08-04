@@ -22,10 +22,8 @@ import { GutSoundsQuadrant } from '../ui/GutSoundsQuadrant';
 import { OptionGrid } from '../ui/OptionGrid';
 import { ManureRecorder } from '../ui/ManureRecorder';
 import { DEFAULT_GUT_SOUNDS, summariseGutSounds } from '../../utils/gutSounds';
-import {
-  evaluateCallSurgeonTriggers,
-  latestColumn,
-} from '../../utils/callSurgeonTriggers';
+import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
+import { latestColumn } from '../../utils/admission';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { completeTasksForRound } from '../../utils/schedule';
@@ -116,7 +114,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   onUpdatePatient,
   onDone,
 }) => {
-  const latest = latestColumn(patient.flowsheetHistory);
+  const latest = latestColumn(patient);
 
   // Vitals
   const [hr, setHr] = useState<string>(toInput(latest?.vitals?.heartRate));

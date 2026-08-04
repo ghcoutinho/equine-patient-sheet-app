@@ -4,7 +4,8 @@ import { GutSoundsGlyph } from '../ui/GutSoundsQuadrant';
 import { formatManure } from '../../utils/manure';
 import { severityOf } from '../../data/clinicalAssessments';
 import { summariseGutSounds } from '../../utils/gutSounds';
-import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
+import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
+import { latestColumn } from '../../utils/admission';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { BODY_SYSTEM_META } from '../../data/bodySystems';
@@ -294,7 +295,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   };
 
   const triggers = evaluateCallSurgeonTriggers(
-    latestColumn(patient.flowsheetHistory),
+    latestColumn(patient),
     undefined,
     patient.flowsheetHistory.length > 1
       ? patient.flowsheetHistory[patient.flowsheetHistory.length - 2]

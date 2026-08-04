@@ -63,6 +63,9 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
       archivedAt: next === 'ARCHIVED' ? now : p.archivedAt,
       // Archiving and discharge preserve the whole record, including every
       // charted round — nothing is deleted, so it stays available for billing.
+      // Reactivation opens a new admission boundary, so rounds from the
+      // stay that just ended don't read as "current" once charting resumes.
+      currentAdmissionStartedAt: next === 'ACTIVE' ? now : p.currentAdmissionStartedAt,
     });
   };
 

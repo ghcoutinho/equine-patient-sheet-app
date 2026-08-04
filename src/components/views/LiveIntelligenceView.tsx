@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { Patient, ViewTab } from '../../types';
-import { evaluateCallSurgeonTriggers, latestColumn } from '../../utils/callSurgeonTriggers';
+import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
+import { latestColumn } from '../../utils/admission';
 import { columnToEntry, buildPanels } from '../../utils/intelligence';
 import { getPrognosticFlags } from '../../utils/prognosis';
 import { evaluateBiomarkers } from '../../utils/biomarkerEvaluator';
@@ -34,7 +35,7 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
   onOpenNewAssessment,
 }) => {
   const now = useMemo(() => new Date(), []);
-  const latest = latestColumn(patient.flowsheetHistory);
+  const latest = latestColumn(patient);
   // The round before the latest, for every reading that needs a direction
   // rather than a value — heart rate trajectory, PCV/TP splitting.
   const previous =

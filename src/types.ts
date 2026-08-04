@@ -320,6 +320,13 @@ export interface Patient {
   lifecycle?: PatientLifecycle;
   dischargedAt?: string;
   archivedAt?: string;
+  /**
+   * When the current admission/stay started, ISO timestamp. Set on admission
+   * and again on every reactivation — never touched otherwise. Charted rounds
+   * before this boundary are an earlier stay, not deleted, just not "current"
+   * by default. See src/utils/admission.ts.
+   */
+  currentAdmissionStartedAt?: string;
   /** Primary problem, shown as the flowsheet banner. */
   diagnosis?: string;
   bodySystems?: BodySystem[];

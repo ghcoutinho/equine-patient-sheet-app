@@ -117,6 +117,7 @@ export const NewAssessmentModal: React.FC<NewAssessmentModalProps> = ({
       category: isFoal ? 'NEONATAL_FOAL' : 'ADULT_COLIC',
       gender: sex,
       admissionDate: new Date().toISOString().split('T')[0],
+      currentAdmissionStartedAt: new Date().toISOString(),
       owner: { name: 'Not recorded' },
       schedule: defaultSchedule(isFoal),
       // An empty chart. The first column appears when someone charts a round.

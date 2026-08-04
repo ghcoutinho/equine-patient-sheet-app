@@ -299,8 +299,3 @@ export function evaluateCallSurgeonTriggers(
 
   return out;
 }
-
-/** Convenience: the most recent round of a patient's history. */
-export function latestColumn(history: FlowsheetColumn[]): FlowsheetColumn | undefined {
-  return history.length > 0 ? history[history.length - 1] : undefined;
-}

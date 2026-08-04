@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Patient, ViewTab, FlowsheetColumn } from '../../types';
-import { latestColumn } from '../../utils/callSurgeonTriggers';
+import { latestColumn } from '../../utils/admission';
 import { columnToEntry, foalSurvivalPanel } from '../../utils/intelligence';
 import { neonatalSepsisPanel } from '../../utils/neonatalSepsisScore';
 import { newId } from '../../utils/treatments';
@@ -52,7 +52,7 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
   const glucosePending = glucoseValue === undefined;
   const iggPending = iggValue === undefined;
 
-  const latest = latestColumn(patient.flowsheetHistory);
+  const latest = latestColumn(patient);
   const entry = columnToEntry(patient, latest);
   const survivalPanel = foalSurvivalPanel(patient, entry);
   const sepsisPanel = neonatalSepsisPanel(patient, entry);
