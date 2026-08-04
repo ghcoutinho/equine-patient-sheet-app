@@ -5,7 +5,7 @@ import { formatManure } from '../../utils/manure';
 import { severityOf } from '../../data/clinicalAssessments';
 import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
-import { latestColumn } from '../../utils/admission';
+import { columnsInCurrentAdmission, earlierAdmissionColumnCount, latestColumn } from '../../utils/admission';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { BODY_SYSTEM_META } from '../../data/bodySystems';
@@ -103,6 +103,16 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
+  const [showEarlier, setShowEarlier] = useState(false);
+
+  // Rounds from a previous stay don't show by default — a reactivated
+  // patient's grid should not resurrect stale columns into the current
+  // admission's view. Nothing is hidden permanently: the toggle below reveals
+  // them, and every earlier round is still in patient.flowsheetHistory.
+  const earlierCount = earlierAdmissionColumnCount(patient);
+  const visibleColumns = showEarlier ? patient.flowsheetHistory : columnsInCurrentAdmission(patient);
+  /** Position within flowsheetHistory — edit/delete always act on the real column, not its position in the filtered view. */
+  const realIndex = (col: FlowsheetColumn) => patient.flowsheetHistory.indexOf(col);
 
   const due = computeDue(patient.schedule, now);
 
@@ -238,7 +248,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
 
   const getLactateClass = (lac?: number | string) => refClass('lactate', lac);
 
-  const colCount = patient.flowsheetHistory.length + 2;
+  const colCount = visibleColumns.length + 2;
 
   /** Section divider row. */
   const sectionRow = (label: string, accent: string) => (
@@ -265,7 +275,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     read: (col: FlowsheetColumn) => string | undefined,
     definitionId?: string,
   ) => {
-    const anyValue = patient.flowsheetHistory.some((c) => read(c) !== undefined);
+    const anyValue = visibleColumns.some((c) => read(c) !== undefined);
     if (!anyValue) return null;
     return (
       <tr key={key} className="group hover:bg-[#f8f9ff] transition relative">
@@ -273,7 +283,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
           <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accent }} />
           <span className="text-[#0b1c30] font-bold">{label}</span>
         </td>
-        {patient.flowsheetHistory.map((col, idx) => {
+        {visibleColumns.map((col, idx) => {
           const v = read(col);
           const sev = definitionId ? severityOf(definitionId, v) : 'normal';
           return (
@@ -297,9 +307,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   const triggers = evaluateCallSurgeonTriggers(
     latestColumn(patient),
     undefined,
-    patient.flowsheetHistory.length > 1
-      ? patient.flowsheetHistory[patient.flowsheetHistory.length - 2]
-      : undefined,
+    visibleColumns.length > 1 ? visibleColumns[visibleColumns.length - 2] : undefined,
   );
 
   return (
@@ -499,6 +507,19 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
             natural width, so each column keeps its min-width and the parameter
             column stays pinned on the left as you scroll along.
           */}
+          {earlierCount > 0 && (
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={() => setShowEarlier((v) => !v)}
+                className="text-xs font-label-caps text-[#0037b0] underline"
+              >
+                {showEarlier
+                  ? 'Hide earlier admission rounds'
+                  : `Show ${earlierCount} earlier admission round${earlierCount === 1 ? '' : 's'}`}
+              </button>
+            </div>
+          )}
           <div className="bg-white rounded border border-[#E2E8F0] shadow-sm overflow-x-auto overflow-y-visible relative">
             <table className="text-left border-collapse min-w-full w-max">
               {/* Header Row */}
@@ -507,11 +528,11 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                   <th className="sticky left-0 z-30 bg-[#f8f9ff] px-4 py-3 border-b border-r border-[#E2E8F0] w-52 font-label-caps text-xs text-[#434655]">
                     Parameter
                   </th>
-                  {patient.flowsheetHistory.map((col, idx) => (
+                  {visibleColumns.map((col, idx) => (
                     <th
                       key={idx}
                       className={`px-2 py-2 border-b border-r border-[#E2E8F0] font-clinical-value text-sm text-center min-w-[110px] align-top ${
-                        idx === patient.flowsheetHistory.length - 1 ? 'bg-[#e5eeff] font-bold text-[#0037b0]' : ''
+                        idx === visibleColumns.length - 1 ? 'bg-[#e5eeff] font-bold text-[#0037b0]' : ''
                       }`}
                     >
                       <span className="block">{col.time}</span>
@@ -522,7 +543,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="flex items-center justify-center gap-1 mt-1">
                         <button
                           type="button"
-                          onClick={() => startEditRound(idx)}
+                          onClick={() => startEditRound(realIndex(col))}
                           title={`Edit the ${col.time} round`}
                           aria-label={`Edit the ${col.time} round`}
                           className="w-7 h-7 rounded hover:bg-white/70 text-[#434655] flex items-center justify-center"
@@ -531,7 +552,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConfirmDeleteIdx(idx)}
+                          onClick={() => setConfirmDeleteIdx(realIndex(col))}
                           title={`Delete the ${col.time} round`}
                           aria-label={`Delete the ${col.time} round`}
                           className="w-7 h-7 rounded hover:bg-white/70 text-[#B91C1C] flex items-center justify-center"
@@ -550,7 +571,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
               <tbody className="font-clinical-value text-sm tabular-nums">
                 {/* Section Header: Vitals */}
                 <tr>
-                  <td colSpan={patient.flowsheetHistory.length + 2} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#1D4ED8] uppercase tracking-wider font-bold">
+                  <td colSpan={colCount} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#1D4ED8] uppercase tracking-wider font-bold">
                     Vitals
                   </td>
                 </tr>
@@ -564,9 +585,9 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">bpm</span>
                     </div>
                   </td>
-                  {patient.flowsheetHistory.map((col, idx) => (
-                    <td 
-                      key={idx} 
+                  {visibleColumns.map((col, idx) => (
+                    <td
+                      key={idx}
                       className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getHRClass(col.vitals.heartRate)}`}
                     >
                       {col.vitals.heartRate ? `${col.vitals.heartRate} ↗` : '--'}
@@ -594,7 +615,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       </span>
                     </div>
                   </td>
-                  {patient.flowsheetHistory.map((col, idx) => {
+                  {visibleColumns.map((col, idx) => {
                     const temp = patient.isFoal ? col.vitals.temperatureF : col.vitals.temperatureC;
                     return (
                       <td 
@@ -638,7 +659,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                 )}
 
                 {/* Section Header: Pain */}
-                {patient.flowsheetHistory.some((c) => c.pain) && (
+                {visibleColumns.some((c) => c.pain) && (
                   <>
                     {sectionRow('Pain & Analgesia', '#6D28D9')}
                     {structuredRow(
@@ -666,13 +687,13 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
 
                 {/* Section Header: GI / Colic */}
                 <tr>
-                  <td colSpan={patient.flowsheetHistory.length + 2} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#B45309] uppercase tracking-wider font-bold">
+                  <td colSpan={colCount} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#B45309] uppercase tracking-wider font-bold">
                     GI / Colic
                   </td>
                 </tr>
 
                 {/* Row: Gut sounds — four quadrants */}
-                {patient.flowsheetHistory.some((c) => c.gi.gutSounds) && (
+                {visibleColumns.some((c) => c.gi.gutSounds) && (
                   <tr className="group hover:bg-[#f8f9ff] transition relative">
                     <td className="sticky left-0 z-10 bg-white px-4 py-3 border-b border-r border-[#E2E8F0] group-hover:bg-[#f8f9ff]">
                       <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-[#B45309]" />
@@ -683,7 +704,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                         </span>
                       </div>
                     </td>
-                    {patient.flowsheetHistory.map((col, idx) => {
+                    {visibleColumns.map((col, idx) => {
                       const q = col.gi.gutSounds;
                       if (!q) {
                         return (
@@ -723,9 +744,9 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">Liters</span>
                     </div>
                   </td>
-                  {patient.flowsheetHistory.map((col, idx) => (
-                    <td 
-                      key={idx} 
+                  {visibleColumns.map((col, idx) => (
+                    <td
+                      key={idx}
                       className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getRefluxClass(col.gi.refluxVolumeL)}`}
                     >
                       {col.gi.refluxVolumeL !== undefined ? `${col.gi.refluxVolumeL} L ↗` : '--'}
@@ -793,7 +814,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
 
                 {/* Section Header: Labs */}
                 <tr>
-                  <td colSpan={patient.flowsheetHistory.length + 2} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#0E7490] uppercase tracking-wider font-bold">
+                  <td colSpan={colCount} className="bg-[#eff4ff] px-4 py-1.5 border-b border-[#E2E8F0] font-label-caps text-xs text-[#0E7490] uppercase tracking-wider font-bold">
                     Labs
                   </td>
                 </tr>
@@ -807,9 +828,9 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">mmol/L</span>
                     </div>
                   </td>
-                  {patient.flowsheetHistory.map((col, idx) => (
-                    <td 
-                      key={idx} 
+                  {visibleColumns.map((col, idx) => (
+                    <td
+                      key={idx}
                       className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getLactateClass(col.labs.lactate)}`}
                     >
                       {col.labs.lactate ? `${col.labs.lactate} ↗` : 'Pend'}
@@ -828,7 +849,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                 </tr>
 
                 {/* Section: Laminitis watch */}
-                {patient.flowsheetHistory.some((c) => c.laminitis) && (
+                {visibleColumns.some((c) => c.laminitis) && (
                   <>
                     {sectionRow('Laminitis Watch', '#A21CAF')}
                     {structuredRow(
@@ -858,7 +879,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                 )}
 
                 {/* Section: Catheter & incision */}
-                {patient.flowsheetHistory.some((c) => c.support) && (
+                {visibleColumns.some((c) => c.support) && (
                   <>
                     {sectionRow('Catheter & Incision', '#0E7490')}
                     {structuredRow(
@@ -965,7 +986,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
           {/* Trends, drawn from the charted columns */}
           <div className="space-y-4">
             {TREND_SERIES.map((s) => {
-              const points = patient.flowsheetHistory.map((col) => ({
+              const points = visibleColumns.map((col) => ({
                 value: s.pick(col),
                 label: col.time,
               }));
