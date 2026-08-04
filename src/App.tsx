@@ -29,6 +29,11 @@ export function App() {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const activePatient = patients.find(p => p.id === activePatientId) || patients[0];
+  // A pre-registered patient hasn't physically arrived — the ward dashboards
+  // shouldn't count or render it as a case currently being cared for.
+  // PatientManagementView still shows every lifecycle state; it's the one
+  // place a not-yet-arrived patient is supposed to be visible.
+  const wardPatients = patients.filter(p => p.lifecycle !== 'AWAITING_ARRIVAL');
 
   const handleDeletePatient = (id: string) => {
     setPatients(prev => {
@@ -104,7 +109,7 @@ export function App() {
         <main className="flex-1 lg:pl-64 flex flex-col min-w-0">
           {currentTab === 'overview' && (
             <ClinicalSuiteOverview
-              patients={patients}
+              patients={wardPatients}
               onNavigate={setCurrentTab}
               onOpenNewAssessment={() => setIsModalOpen(true)}
             />
@@ -112,7 +117,7 @@ export function App() {
 
           {currentTab === 'dashboard' && (
             <DashboardView
-              patients={patients}
+              patients={wardPatients}
               onSelectPatient={handleSelectPatient}
               onOpenNewAssessment={() => setIsModalOpen(true)}
             />

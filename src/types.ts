@@ -8,7 +8,7 @@ export type PatientStatus =
   | 'ARCHIVED';
 
 /** Lifecycle states a patient record can be in, independent of clinical acuity. */
-export type PatientLifecycle = 'ACTIVE' | 'DISCHARGED' | 'ARCHIVED';
+export type PatientLifecycle = 'AWAITING_ARRIVAL' | 'ACTIVE' | 'DISCHARGED' | 'ARCHIVED';
 
 /**
  * Body systems involved in the primary problem. Drives the icon strip on the

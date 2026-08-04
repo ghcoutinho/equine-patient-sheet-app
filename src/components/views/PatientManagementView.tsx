@@ -15,6 +15,7 @@ interface PatientManagementViewProps {
 const lifecycleOf = (p: Patient): PatientLifecycle => p.lifecycle ?? 'ACTIVE';
 
 const LIFECYCLE_META: Record<PatientLifecycle, { label: string; chip: string }> = {
+  AWAITING_ARRIVAL: { label: 'Awaiting arrival', chip: 'bg-[#FFFBEB] text-[#B45309] border-[#B45309]/30' },
   ACTIVE: { label: 'Active', chip: 'bg-[#ECFDF5] text-[#047857] border-[#047857]/30' },
   DISCHARGED: { label: 'Discharged', chip: 'bg-[#eff4ff] text-[#0037b0] border-[#0037b0]/30' },
   ARCHIVED: { label: 'Archived', chip: 'bg-[#F8FAFC] text-[#475569] border-[#c4c5d7]' },
@@ -47,7 +48,13 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   );
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: patients.length, ACTIVE: 0, DISCHARGED: 0, ARCHIVED: 0 };
+    const c: Record<string, number> = {
+      ALL: patients.length,
+      AWAITING_ARRIVAL: 0,
+      ACTIVE: 0,
+      DISCHARGED: 0,
+      ARCHIVED: 0,
+    };
     patients.forEach((p) => {
       c[lifecycleOf(p)] += 1;
     });
@@ -56,9 +63,14 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
 
   const setLifecycle = (p: Patient, next: PatientLifecycle) => {
     const now = new Date().toISOString();
+    const wasAwaitingArrival = lifecycleOf(p) === 'AWAITING_ARRIVAL';
     onUpdatePatient({
       ...p,
       lifecycle: next,
+      // The "AWAITING ARRIVAL" chip is stale the moment the horse is marked
+      // arrived — leaving it would show on the ward dashboard as if the
+      // patient still hadn't shown up.
+      statusLabel: wasAwaitingArrival && next === 'ACTIVE' ? 'ADMITTED' : p.statusLabel,
       dischargedAt: next === 'DISCHARGED' ? now : p.dischargedAt,
       archivedAt: next === 'ARCHIVED' ? now : p.archivedAt,
       // Archiving and discharge preserve the whole record, including every
@@ -144,7 +156,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-lg border border-[#E2E8F0] shadow-sm flex flex-wrap gap-2 items-center">
-        {(['ACTIVE', 'DISCHARGED', 'ARCHIVED', 'ALL'] as const).map((f) => (
+        {(['AWAITING_ARRIVAL', 'ACTIVE', 'DISCHARGED', 'ARCHIVED', 'ALL'] as const).map((f) => (
           <button
             key={f}
             type="button"
@@ -270,7 +282,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                       onClick={() => setLifecycle(p, 'ACTIVE')}
                       className="min-h-[44px] px-3 rounded border border-[#047857]/30 bg-[#ECFDF5] text-[#047857] font-label-caps text-xs"
                     >
-                      Reactivate
+                      {lc === 'AWAITING_ARRIVAL' ? 'Mark arrived' : 'Reactivate'}
                     </button>
                   )}
                   <button

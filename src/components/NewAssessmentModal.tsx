@@ -105,8 +105,12 @@ export const NewAssessmentModal: React.FC<NewAssessmentModalProps> = ({
       sex,
       location: location.trim() || 'Not assigned',
       status: 'ACTIVE',
-      statusLabel: 'ADMITTED',
-      lifecycle: 'ACTIVE',
+      statusLabel: 'AWAITING ARRIVAL',
+      // Pre-registered, not yet physically here — PatientManagementView's
+      // "Mark arrived" moves this to ACTIVE and opens the admission boundary
+      // (currentAdmissionStartedAt) at the moment the horse actually arrives,
+      // not at the moment the record was typed up.
+      lifecycle: 'AWAITING_ARRIVAL',
       lastObsTime: 'No round charted',
       isFoal,
       diagnosis: diagnosis.trim() || undefined,
@@ -117,7 +121,7 @@ export const NewAssessmentModal: React.FC<NewAssessmentModalProps> = ({
       category: isFoal ? 'NEONATAL_FOAL' : 'ADULT_COLIC',
       gender: sex,
       admissionDate: new Date().toISOString().split('T')[0],
-      currentAdmissionStartedAt: new Date().toISOString(),
+      // Set on arrival, not here — see the lifecycle comment above.
       owner: { name: 'Not recorded' },
       schedule: defaultSchedule(isFoal),
       // An empty chart. The first column appears when someone charts a round.
