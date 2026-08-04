@@ -162,7 +162,9 @@ export function App() {
           {currentTab === 'scores' && (
             <NeonatalAssessmentView
               patient={activePatient}
+              clinician={clinician}
               onUpdatePatient={handleUpdatePatient}
+              onNavigate={setCurrentTab}
             />
           )}
 

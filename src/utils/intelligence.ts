@@ -529,47 +529,69 @@ export function casPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
  * Each item is one point for the favourable finding; the published score is
  * 0–7, so a value is only meaningful once most items are charted.
  */
+/**
+ * `${value} (legacy record)`, marking a criterion that fell back to a
+ * pre-restructure Patient field rather than the round. See patientAge in
+ * patientIdentity.ts for the same pattern applied to age.
+ */
+const legacyEvidence = (text: string | undefined, usedFallback: boolean): string | undefined =>
+  text === undefined ? undefined : usedFallback ? `${text} (legacy record)` : text;
+
 export function foalSurvivalPanel(
   patient: Patient,
   entry: Partial<FlowsheetEntry>,
 ): ScorePanel {
+  // Gestational age, cold extremities and infectious sites moved to
+  // patient.gestationalAgeDays and the round's Neonatal Exam section
+  // (2026-08-03). Records charted before that fall back to the legacy
+  // fssPrematurityDays/fssColdExtremities/fssInfectiousSite fields rather
+  // than losing their score.
+  const gestationDays = patient.gestationalAgeDays ?? patient.fssPrematurityDays;
+  const gestationFromLegacy =
+    patient.gestationalAgeDays === undefined && patient.fssPrematurityDays !== undefined;
+
+  const coldExtremities = entry.coldExtremities ?? patient.fssColdExtremities;
+  const coldExtremitiesFromLegacy =
+    entry.coldExtremities === undefined && patient.fssColdExtremities !== undefined;
+
+  const legacySites = patient.fssInfectiousSite
+    ? patient.fssInfectiousSite.split(';').map((v) => v.trim()).filter(Boolean).length
+    : undefined;
+  const infectiousSitesCount = entry.infectiousSitesCount ?? legacySites;
+  const infectiousSitesFromLegacy = entry.infectiousSitesCount === undefined && legacySites !== undefined;
+
   const criteria: Criterion[] = [
     {
       id: 'gestation',
       label: 'Carried to term',
       maxPoints: 1,
       rule: '≥ 320 days gestation',
-      evidence: fmt(patient.gestationalAgeDays, 'days'),
-      points:
-        patient.gestationalAgeDays === undefined
-          ? undefined
-          : patient.gestationalAgeDays >= 320
-            ? 1
-            : 0,
+      evidence: legacyEvidence(fmt(gestationDays, 'days'), gestationFromLegacy),
+      points: gestationDays === undefined ? undefined : gestationDays >= 320 ? 1 : 0,
     },
     {
       id: 'extremities',
       label: 'Extremities warm',
       maxPoints: 1,
       rule: 'No cold extremities',
-      evidence: entry.coldExtremities === undefined ? undefined : entry.coldExtremities ? 'cold' : 'warm',
-      points: entry.coldExtremities === undefined ? undefined : entry.coldExtremities ? 0 : 1,
+      evidence: legacyEvidence(
+        coldExtremities === undefined ? undefined : coldExtremities ? 'cold' : 'warm',
+        coldExtremitiesFromLegacy,
+      ),
+      points: coldExtremities === undefined ? undefined : coldExtremities ? 0 : 1,
     },
     {
       id: 'sites',
       label: 'Infectious sites',
       maxPoints: 1,
       rule: 'Fewer than 2 sites',
-      evidence:
-        entry.infectiousSitesCount === undefined
+      evidence: legacyEvidence(
+        infectiousSitesCount === undefined
           ? undefined
-          : `${entry.infectiousSitesCount} site${entry.infectiousSitesCount === 1 ? '' : 's'}`,
-      points:
-        entry.infectiousSitesCount === undefined
-          ? undefined
-          : entry.infectiousSitesCount < 2
-            ? 1
-            : 0,
+          : `${infectiousSitesCount} site${infectiousSitesCount === 1 ? '' : 's'}`,
+        infectiousSitesFromLegacy,
+      ),
+      points: infectiousSitesCount === undefined ? undefined : infectiousSitesCount < 2 ? 1 : 0,
     },
     {
       id: 'glucose',
@@ -600,6 +622,7 @@ export function foalSurvivalPanel(
 
   const score = boundsOf(criteria);
   const charted = criteria.filter((c) => c.points !== undefined).length;
+  const anyLegacy = gestationFromLegacy || coldExtremitiesFromLegacy || infectiousSitesFromLegacy;
 
   return {
     id: 'foal-survival',
@@ -612,7 +635,11 @@ export function foalSurvivalPanel(
       charted === 0
         ? undefined
         : `${score.min}–${score.max} of 6 favourable items, from ${charted} charted parameter${charted === 1 ? '' : 's'}.`,
-    note: 'Six of the seven published items are charted here; no survival percentage is derived, because this app does not implement the published regression.',
+    note: `Six of the seven published items are charted here; no survival percentage is derived, because this app does not implement the published regression.${
+      anyLegacy
+        ? ' One or more items marked "(legacy record)" came from this patient’s pre-restructure fields rather than a charted round.'
+        : ''
+    }`,
   };
 }
 

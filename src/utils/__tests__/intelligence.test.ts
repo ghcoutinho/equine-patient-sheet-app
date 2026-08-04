@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { FlowsheetColumn, FlowsheetEntry, Patient } from '../../types';
-import { columnToEntry, casPanel, sirsPanel } from '../intelligence';
+import { columnToEntry, casPanel, sirsPanel, foalSurvivalPanel } from '../intelligence';
 
 /**
  * The bridge from a charted round to the scoring engines.
@@ -368,5 +368,62 @@ describe('casPanel — Farrell et al. 2021 colic assessment score', () => {
     expect(p.score.max).toBeGreaterThan(7);
     expect(p.severity).toBe('warning');
     expect(p.interpretation).toContain('either side of the cutoff');
+  });
+});
+
+describe('foalSurvivalPanel — round-driven', () => {
+  const foal = (over: Partial<Patient> = {}): Patient =>
+    ({ id: 'p1', name: 'Foal', isFoal: true, ...over }) as Patient;
+
+  it('sources gestation from patient.gestationalAgeDays, glucose/IgG/WBC from the round', () => {
+    const p = foalSurvivalPanel(
+      foal({ gestationalAgeDays: 340 }),
+      { coldExtremities: false, infectiousSitesCount: 0, glucose: 90, wbc: 8000, igg: 900 },
+    );
+    expect(p.score).toEqual({ min: 6, max: 6, isExact: true });
+    expect(p.criteria.every((c) => c.points === 1)).toBe(true);
+  });
+
+  it('does not mark evidence as a legacy record when the round has real data', () => {
+    const p = foalSurvivalPanel(foal({ gestationalAgeDays: 340 }), { coldExtremities: false });
+    expect(p.criteria.find((c) => c.id === 'gestation')?.evidence).not.toContain('legacy');
+    expect(p.criteria.find((c) => c.id === 'extremities')?.evidence).not.toContain('legacy');
+  });
+
+  it('falls back to the legacy fssPrematurityDays when gestationalAgeDays is unset', () => {
+    const p = foalSurvivalPanel(foal({ fssPrematurityDays: 315 }), {});
+    const gestation = p.criteria.find((c) => c.id === 'gestation');
+    expect(gestation?.points).toBe(0); // < 320
+    expect(gestation?.evidence).toBe('315 days (legacy record)');
+    expect(p.note).toContain('legacy record');
+  });
+
+  it('prefers gestationalAgeDays over the legacy field when both are present', () => {
+    const p = foalSurvivalPanel(foal({ gestationalAgeDays: 340, fssPrematurityDays: 300 }), {});
+    const gestation = p.criteria.find((c) => c.id === 'gestation');
+    expect(gestation?.evidence).toBe('340 days');
+    expect(gestation?.points).toBe(1);
+  });
+
+  it('falls back to the legacy coldExtremities flag when the round has none', () => {
+    const p = foalSurvivalPanel(foal({ fssColdExtremities: true }), {});
+    const extremities = p.criteria.find((c) => c.id === 'extremities');
+    expect(extremities?.points).toBe(0);
+    expect(extremities?.evidence).toBe('cold (legacy record)');
+  });
+
+  it('falls back to the legacy infectious-site string, split and counted', () => {
+    const p = foalSurvivalPanel(foal({ fssInfectiousSite: 'Umbilicus; Joint; Physis' }), {});
+    const sites = p.criteria.find((c) => c.id === 'sites');
+    expect(sites?.evidence).toBe('3 sites (legacy record)');
+    expect(sites?.points).toBe(0); // >= 2 sites
+  });
+
+  it('is undefined, not zero, when neither the round nor legacy fields have anything', () => {
+    const p = foalSurvivalPanel(foal(), {});
+    expect(p.criteria.find((c) => c.id === 'gestation')?.points).toBeUndefined();
+    expect(p.criteria.find((c) => c.id === 'extremities')?.points).toBeUndefined();
+    expect(p.criteria.find((c) => c.id === 'sites')?.points).toBeUndefined();
+    expect(p.note).not.toContain('legacy record');
   });
 });

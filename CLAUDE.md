@@ -250,7 +250,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 224 tests across 9 files in
+own — `vite.config.ts` is enough). 231 tests across 9 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -276,7 +276,10 @@ class of defect a unit test catches and a reviewer's eye does not):
   instead of a dose), and lab-panel sourcing for total calcium, SAA, NGAL,
   RPR, band neutrophils, fibrinogen and blood gas; `casPanel`'s band edges,
   the lactate table's closed gap, and the > 7 cutoff including the
-  indeterminate case where missing data straddles it.
+  indeterminate case where missing data straddles it; `foalSurvivalPanel`'s
+  legacy fallback (`gestationalAgeDays` over `fssPrematurityDays`, and the
+  two staying independently selectable) including the `(legacy record)`
+  evidence tag and that a fresh round takes priority over a legacy field.
 - `biomarkerEvaluator.ts` — every SAA/NGAL/RPR cut-off against its cited
   paper, including the boundary values themselves (1,050/1,250 mg/L,
   455/1,104 µg/L, 0.0928).
@@ -318,18 +321,39 @@ on the retired `PatientCategory` axis rather than the current `patientAge()`
 model, and the reference ranges were an uncited, superseded duplicate of
 `ageStratifiedReferenceRanges.ts`. Neither had an importer.
 
+The Foal Survival Score's split-brain is fixed (2026-08-03).
+`NeonatalAssessmentView` no longer runs its own scorer — it renders the same
+`foalSurvivalPanel` result Clinical Intelligence does, via the shared
+`ScorePanelCard` (extracted from `LiveIntelligenceView`'s formerly-private
+`PanelCard`, so there is exactly one renderer for every `ScorePanel` in the
+app). Cold extremities and infectious sites moved to the round's Neonatal
+Exam section; gestational age now writes `patient.gestationalAgeDays`, the
+field the engine actually reads, instead of the disconnected
+`fssPrematurityDays`. The legacy `fssPrematurityDays`/`fssColdExtremities`/
+`fssInfectiousSite` fields stay readable as a fallback — mirroring
+`patientAge`'s DOB-vs-legacy-text pattern — so foals admitted before this
+change keep scoring; evidence sourced that way is marked `(legacy record)`
+rather than presented as current. Also removed: an unconditional "Administer
+IV Plasma Transfusion & Start Broad-Spectrum Antimicrobial Therapy" block that
+rendered for every foal regardless of score — hardcoded, not derived from
+anything charted, the same class of defect rule 1 exists to prevent.
+
 ### Structural limits
 
 - **Single-browser storage.** No sync, no second device, no colleague. Clearing
   site data loses everything. A ward tool needs a backend and auth.
 - **No print or export.** The flowsheet cannot reach the medical record.
-- **`NeonatalAssessmentView` computes the Foal Survival Score twice.** Its own
-  local glucose/IgG inputs feed a hand-rolled `confirmedScore`/`maxPendingScore`
-  for the form's live display, while `foalSurvivalPanel` in `intelligence.ts`
-  independently computes the same FSS from the charted round's glucose/IgG.
-  The two can disagree if the form's values and the round's charted values
-  differ — the same "two engines" pattern the dose calculator merge fixed.
-  Not fixed here; flagged for the same treatment.
+- **Every scoring panel reads only the single most recent round.**
+  `columnToEntry(patient, latestColumn(...))` looks at one column, not the
+  history — charted five minutes ago in a different round, a value reads as
+  "not charted" in the current panel until it's charted again. This is
+  systemic (every panel: SIRS, GI severity, CAS, foal survival), not specific
+  to any one view, and it means a labs-only save from `NeonatalAssessmentView`
+  can make that round's vitals-dependent panels go blank until a fuller round
+  is charted. The app never fabricates from a stale round to paper over
+  this — see the `(legacy record)` fallback below — but the gap itself is
+  unaddressed. A real fix needs the panels to look back further than one
+  column, which is a bigger design question than this pass took on.
 - **6 duplicate ids remain in `expandedFormulary.ts`** (`vasopressin`,
   `epinephrine`, `prednisolone`, `furosemide`, `dantrolene`, `acetazolamide`) —
   all same-dose or low-magnitude (≤2×) variants cross-listed under a second
