@@ -183,11 +183,20 @@ with nothing saying so). `utils/admission.ts` exposes the boundary-aware reads
 (every legacy/sample patient), is never excluded — both default to "include
 it" rather than guessing which admission it belongs to.
 
-Still open from this track: the `Recorded` envelope (`{at, by}`) enforced on
-every write path, a mandatory clinician before charting (ending the
-`clinician || 'Unattributed'` fallback used across `RoundEntryView`,
-`DoseEntryPanel`, `NeonatalAssessmentView` and `TreatmentsView`), and an
-`AWAITING_ARRIVAL` lifecycle state.
+Also shipped (2026-08-04): clinician is now mandatory before any write, hard
+block with no override. Every save action that used to fall back to
+`clinician || 'Unattributed'` — `RoundEntryView`'s save, `FlowsheetView`'s
+inline edit and quick-add, `NeonatalAssessmentView`'s labs save,
+`TreatmentsView`'s Given/Stop, `DoseEntryPanel`'s add-to-sheet (shared by the
+Medications tab and the Dose Calculator) — is disabled until a name is set in
+the top bar, via a shared `ClinicianRequiredNotice` component carrying one
+message everywhere. Found in passing: `FlowsheetView`'s quick-add-column path
+wrote a column with no `recordedAt` or `recordedBy` at all; now timestamped
+and attributed like every other write path.
+
+Still open from this track: the `Recorded` envelope (`{at, by}`) as a shared
+type enforced structurally rather than by convention at each call site, and
+an `AWAITING_ARRIVAL` lifecycle state.
 
 ---
 
