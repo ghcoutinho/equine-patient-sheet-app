@@ -152,6 +152,43 @@ prevention and any ward-wide live view are *blocked* until then, not merely
 unbuilt: `localStorage` gives two tablets two separate databases, and a safety
 interlock that only one tablet can see is worse than none.
 
+### The admission boundary (Track 1, in progress, 2026-08-04)
+
+Principle B calls for the record to belong to the episode, not the screen, and
+for a readmission to be a new episode rather than an append to the last one.
+A full per-episode entity — splitting `flowsheetHistory`, `treatments` and
+`labPanels` off `Patient` into their own store — is a bigger restructure than
+this pass takes on: every view that reads them would have to change at once
+to follow, for a single-device, single-clinician tool that does not yet need
+the full generality. `SCHEMA_VERSION` in `persistence.ts` also constrains this
+hard: a version bump wipes every stored patient and reseeds from
+`INITIAL_PATIENTS`, so every change here had to be additive — new optional
+fields only, nothing restructured or required.
+
+What shipped instead: `Patient.currentAdmissionStartedAt`, an optional
+timestamp set on admission and again on every reactivation
+(`PatientManagementView`'s "Reactivate" button used to just flip `lifecycle`
+back to `'ACTIVE'` with no boundary at all — a horse discharged in May and
+reactivated in August would resume charting onto the same continuous
+`flowsheetHistory`, and the "most recent round" every scoring panel,
+call-surgeon trigger and "Prev:" reference reads could be three months stale
+with nothing saying so). `utils/admission.ts` exposes the boundary-aware reads
+— `columnsInCurrentAdmission`, `earlierAdmissionColumnCount`, and a
+`latestColumn(patient)` that superseded `callSurgeonTriggers.ts`'s old
+`latestColumn(history)` — and every scoring panel, trigger and the
+`FlowsheetView` grid now reads through them instead of indexing
+`flowsheetHistory` directly. The grid defaults to the current admission with a
+"Show N earlier admission rounds" toggle; nothing is hidden permanently (rule
+9). A column with no `recordedAt`, or a patient with no boundary set at all
+(every legacy/sample patient), is never excluded — both default to "include
+it" rather than guessing which admission it belongs to.
+
+Still open from this track: the `Recorded` envelope (`{at, by}`) enforced on
+every write path, a mandatory clinician before charting (ending the
+`clinician || 'Unattributed'` fallback used across `RoundEntryView`,
+`DoseEntryPanel`, `NeonatalAssessmentView` and `TreatmentsView`), and an
+`AWAITING_ARRIVAL` lifecycle state.
+
 ---
 
 ## Stack and commands
@@ -231,6 +268,7 @@ and one tab with three different names.
 | `utils/schedule.ts` | Monitoring intervals and "next due" |
 | `utils/missingDataHandler.ts` | `ScoreBounds` arithmetic — see rule 5 |
 | `data/patientIdentity.ts` | Age from date of birth, sex, which mark to draw |
+| `utils/admission.ts` | Current-admission boundary — see below |
 
 ### Two invariants worth stating
 
@@ -250,7 +288,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 257 tests across 11 files in
+own — `vite.config.ts` is enough). 265 tests across 12 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -290,6 +328,10 @@ class of defect a unit test catches and a reviewer's eye does not):
 - `academicReferences.ts` — no duplicate ids, every entry has a title and a
   "used for", and every `sourceRefId` a `ScorePanel` sets resolves to a real
   entry — a typo here fails a test instead of shipping a dead citation link.
+- `admission.ts` — a column with no `recordedAt` or a patient with no boundary
+  set is never excluded; a boundary excludes everything charted before it and
+  includes a round charted exactly on it; `latestColumn` never resurrects a
+  round from a previous admission.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
