@@ -205,8 +205,18 @@ lifecycle state, with a matching filter tab. Its "Mark arrived" action
 registration time, and resets the stale "AWAITING ARRIVAL" `statusLabel` chip
 to "ADMITTED".
 
-Still open from this track: the `Recorded` envelope (`{at, by}`) as a shared
-type enforced structurally rather than by convention at each call site.
+Also shipped (2026-08-04): the `Recorded { at, by }` envelope. `stampRecorded`
+in `utils/recorded.ts` is the only place a `Recorded` value is constructed —
+one call, both fields, always together — and every attribution write
+(`RoundEntryView`, `FlowsheetView`'s edit and quick-add, `NeonatalAssessmentView`,
+`TreatmentsView`'s Given/Stop) now goes through it instead of hand-stamping
+`new Date().toISOString()` next to `clinician`. `Administration` — already
+shaped `{id, at, by, amountText}` — formally extends `Recorded` now, which
+tightens `by` from optional to required with zero change to stored JSON.
+`LabPanel.collectedAt` and `Treatment.startedAt` deliberately don't route
+through it: both are clinical event times the clinician chooses, not write
+timestamps, so pairing them with "now" would silently override a backdated
+entry. This closes out Track 1.
 
 ---
 
@@ -288,6 +298,7 @@ and one tab with three different names.
 | `utils/missingDataHandler.ts` | `ScoreBounds` arithmetic — see rule 5 |
 | `data/patientIdentity.ts` | Age from date of birth, sex, which mark to draw |
 | `utils/admission.ts` | Current-admission boundary — see below |
+| `utils/recorded.ts` | `stampRecorded` — the only place `{at, by}` is constructed |
 
 ### Two invariants worth stating
 
@@ -307,7 +318,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 265 tests across 12 files in
+own — `vite.config.ts` is enough). 267 tests across 13 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -351,6 +362,8 @@ class of defect a unit test catches and a reviewer's eye does not):
   set is never excluded; a boundary excludes everything charted before it and
   includes a round charted exactly on it; `latestColumn` never resurrects a
   round from a previous admission.
+- `recorded.ts` — `stampRecorded` always returns a non-empty `by` alongside a
+  valid `at` from a single call.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
