@@ -14,9 +14,11 @@ import {
   runningLines,
   type TreatmentStatus,
 } from '../../utils/treatments';
+import type { CriEvent } from '../../types';
 import { DoseEntryPanel } from './DoseEntryPanel';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { stampRecorded } from '../../utils/recorded';
+import { infusedVolumeMl, currentRate, isPaused, newCriEventId } from '../../utils/cri';
 
 interface TreatmentsViewProps {
   patient: Patient;
@@ -28,6 +30,15 @@ const KIND_ICON: Record<TreatmentKind, string> = {
   MEDICATION: 'syringe',
   FLUID: 'water_drop',
   CRI: 'monitor_heart',
+};
+
+const CRI_EVENT_LABEL: Record<CriEvent['kind'], string> = {
+  START: 'Started',
+  RATE_CHANGE: 'Rate changed',
+  BAG_CHANGE: 'Bag changed',
+  PAUSE: 'Paused',
+  RESUME: 'Resumed',
+  STOP: 'Stopped',
 };
 
 /**
@@ -138,6 +149,13 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
               stoppedAt: stopped.at,
               stoppedBy: stopped.by,
               stopReason: reason?.trim() || undefined,
+              criEvents:
+                x.kind === 'CRI'
+                  ? [
+                      ...(x.criEvents ?? []),
+                      { id: newCriEventId(), kind: 'STOP' as const, ...stopped, note: reason?.trim() || undefined },
+                    ]
+                  : x.criEvents,
             }
           : x,
       ),
@@ -152,6 +170,63 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
           : x,
       ),
     );
+  };
+
+  /**
+   * Rate change, bag change, pause and resume — the rest of a CRI's history
+   * beyond start and stop. Each appends one event rather than mutating
+   * rateValue/rateUnit in place, so infusedVolumeMl (utils/cri.ts) can
+   * integrate rate × elapsed time across every segment instead of only ever
+   * knowing the current rate.
+   */
+  const logCriEvent = (t: Treatment, event: Omit<CriEvent, 'id' | 'at' | 'by'>) => {
+    if (!hasClinician) return;
+    const recorded = stampRecorded(clinician);
+    write(
+      (patient.treatments ?? []).map((x) =>
+        x.id === t.id
+          ? {
+              ...x,
+              criEvents: [...(x.criEvents ?? []), { id: newCriEventId(), ...recorded, ...event }],
+              // The treatment's own rate stays the *current* rate, so views
+              // that don't read the event log (the row header, the sheet's
+              // rate display) still show the right number.
+              rateValue: event.rateValue ?? x.rateValue,
+              rateUnit: event.rateUnit ?? x.rateUnit,
+            }
+          : x,
+      ),
+    );
+  };
+
+  const changeCriRate = (t: Treatment) => {
+    const rate = currentRate(t);
+    const input = window.prompt(
+      `New rate for ${t.drug}${rate ? ` (currently ${rate.value} ${rate.unit})` : ''}:`,
+      rate ? String(rate.value) : '',
+    );
+    if (!input || !input.trim()) return;
+    const value = Number(input.trim());
+    if (!Number.isFinite(value) || value <= 0) return;
+    const unit = rate?.unit ?? t.rateUnit;
+    if (!unit) return; // no unit to attach the new number to — nothing to log
+    logCriEvent(t, { kind: 'RATE_CHANGE', rateValue: value, rateUnit: unit });
+  };
+
+  const changeCriBag = (t: Treatment) => {
+    const input = window.prompt(`New bag volume for ${t.drug}, in litres (optional):`);
+    if (input === null) return;
+    const bagVolumeL = input.trim() ? Number(input.trim()) : undefined;
+    logCriEvent(t, { kind: 'BAG_CHANGE', bagVolumeL: Number.isFinite(bagVolumeL) ? bagVolumeL : undefined });
+  };
+
+  const pauseCri = (t: Treatment) => {
+    const reason = window.prompt(`Reason for pausing ${t.drug}? (optional)`) ?? undefined;
+    logCriEvent(t, { kind: 'PAUSE', note: reason?.trim() || undefined });
+  };
+
+  const resumeCri = (t: Treatment) => {
+    logCriEvent(t, { kind: 'RESUME' });
   };
 
   const removeTreatment = (t: Treatment) => {
@@ -249,6 +324,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                     key={s.treatment.id}
                     status={s}
                     now={now}
+                    weightKg={patient.weightKg}
                     expanded={expanded === s.treatment.id}
                     disabled={!hasClinician}
                     onToggle={() =>
@@ -258,6 +334,10 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                     onStop={() => stopTreatment(s.treatment)}
                     onResume={() => resumeTreatment(s.treatment)}
                     onRemove={() => removeTreatment(s.treatment)}
+                    onChangeCriRate={() => changeCriRate(s.treatment)}
+                    onChangeCriBag={() => changeCriBag(s.treatment)}
+                    onPauseCri={() => pauseCri(s.treatment)}
+                    onResumeCri={() => resumeCri(s.treatment)}
                   />
                 ))}
               </div>
@@ -481,6 +561,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
 interface RowProps {
   status: TreatmentStatus;
   now: Date;
+  weightKg: number;
   expanded: boolean;
   /** No clinician set — Given/Stop are disabled; Resume/Remove aren't attribution writes. */
   disabled: boolean;
@@ -489,11 +570,16 @@ interface RowProps {
   onStop: () => void;
   onResume: () => void;
   onRemove: () => void;
+  onChangeCriRate: () => void;
+  onChangeCriBag: () => void;
+  onPauseCri: () => void;
+  onResumeCri: () => void;
 }
 
 const TreatmentRow: React.FC<RowProps> = ({
   status,
   now,
+  weightKg,
   expanded,
   disabled,
   onToggle,
@@ -501,6 +587,10 @@ const TreatmentRow: React.FC<RowProps> = ({
   onStop,
   onResume,
   onRemove,
+  onChangeCriRate,
+  onChangeCriBag,
+  onPauseCri,
+  onResumeCri,
 }) => {
   const t = status.treatment;
   const style = TREATMENT_STATE_STYLE[status.state];
@@ -508,6 +598,9 @@ const TreatmentRow: React.FC<RowProps> = ({
   // Mirrors TreatmentsView's isEarlyDose — recomputed here rather than passed
   // down, since this row already has the status that decision reads.
   const early = status.state === 'RUNNING' && status.lastGivenAt !== undefined;
+  const paused = t.kind === 'CRI' && isPaused(t);
+  const infused = t.kind === 'CRI' ? infusedVolumeMl(t, now, weightKg) : undefined;
+  const rate = t.kind === 'CRI' ? currentRate(t) : undefined;
 
   return (
     <div
@@ -537,6 +630,11 @@ const TreatmentRow: React.FC<RowProps> = ({
             <span className={`font-label-caps text-[10px] px-1.5 py-0.5 rounded ${style.chip}`}>
               {style.label} · {status.label}
             </span>
+            {paused && (
+              <span className="font-label-caps text-[10px] px-1.5 py-0.5 rounded bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30">
+                Paused
+              </span>
+            )}
           </div>
           <div className="font-derived-value text-xs text-[#434655] mt-0.5 truncate">
             {[
@@ -544,10 +642,13 @@ const TreatmentRow: React.FC<RowProps> = ({
               t.amountText,
               t.route,
               continuous
-                ? t.rateText
+                ? rate
+                  ? `${rate.value} ${rate.unit}`
+                  : t.rateText
                 : t.intervalHours
                   ? `q${t.intervalHours}h`
                   : 'single dose',
+              t.kind === 'CRI' && infused !== undefined ? `${Math.round(infused)} mL infused` : undefined,
               `started ${clockTime(t.startedAt)} ${dayLabel(t.startedAt, now)}`,
             ]
               .filter(Boolean)
@@ -577,6 +678,44 @@ const TreatmentRow: React.FC<RowProps> = ({
                 {early ? 'warning' : 'check'}
               </span>
               <span className="hidden sm:inline">{early ? 'Given early?' : 'Given'}</span>
+            </button>
+          )}
+          {t.kind === 'CRI' && status.state !== 'STOPPED' && !paused && (
+            <>
+              <button
+                onClick={onChangeCriRate}
+                disabled={disabled}
+                title={disabled ? 'Set your name in the top bar before changing the rate' : 'Change rate'}
+                className="px-2.5 py-1 text-xs font-label-caps border border-[#0037b0]/40 text-[#0037b0] rounded hover:bg-[#0037b0]/5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Rate
+              </button>
+              <button
+                onClick={onChangeCriBag}
+                disabled={disabled}
+                title={disabled ? 'Set your name in the top bar before logging a bag change' : 'Bag change'}
+                className="px-2.5 py-1 text-xs font-label-caps border border-[#0E7490]/40 text-[#0E7490] rounded hover:bg-[#0E7490]/5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Bag
+              </button>
+              <button
+                onClick={onPauseCri}
+                disabled={disabled}
+                title={disabled ? 'Set your name in the top bar before pausing' : 'Pause'}
+                className="px-2.5 py-1 text-xs font-label-caps border border-[#B45309]/40 text-[#B45309] rounded hover:bg-[#B45309]/5 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Pause
+              </button>
+            </>
+          )}
+          {t.kind === 'CRI' && paused && (
+            <button
+              onClick={onResumeCri}
+              disabled={disabled}
+              title={disabled ? 'Set your name in the top bar before resuming' : undefined}
+              className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Resume
             </button>
           )}
           {status.state !== 'STOPPED' ? (
@@ -635,6 +774,16 @@ const TreatmentRow: React.FC<RowProps> = ({
                 </dd>
               </div>
             )}
+            {t.kind === 'CRI' && infused !== undefined && (
+              <div>
+                <dt className="font-label-caps text-[10px] text-[#747686] uppercase">
+                  Infused so far
+                </dt>
+                <dd className="text-[#0b1c30]">
+                  {Math.round(infused)} mL{rate ? ` at ${rate.value} ${rate.unit}` : ''}
+                </dd>
+              </div>
+            )}
             {t.stoppedAt && (
               <div className="sm:col-span-3">
                 <dt className="font-label-caps text-[10px] text-[#747686] uppercase">Stopped</dt>
@@ -685,6 +834,40 @@ const TreatmentRow: React.FC<RowProps> = ({
               </ul>
             )}
           </div>
+
+          {t.kind === 'CRI' && (
+            <div>
+              <h4 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
+                Line history ({t.criEvents?.length ?? 0})
+              </h4>
+              {!t.criEvents?.length ? (
+                <p className="font-derived-value text-xs text-[#434655]">
+                  No event log — this line predates it; infused volume is estimated from the
+                  order's own rate.
+                </p>
+              ) : (
+                <ul className="divide-y divide-[#E2E8F0] bg-white border border-[#E2E8F0] rounded">
+                  {[...t.criEvents]
+                    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+                    .map((e) => (
+                      <li
+                        key={e.id}
+                        className="flex justify-between items-center px-2.5 py-1.5 font-derived-value text-xs"
+                      >
+                        <span className="text-[#0b1c30]">
+                          {clockTime(e.at)} · {dayLabel(e.at, now)} ·{' '}
+                          <span className="font-bold">{CRI_EVENT_LABEL[e.kind]}</span>
+                          {e.rateValue !== undefined && e.rateUnit ? ` · ${e.rateValue} ${e.rateUnit}` : ''}
+                          {e.bagVolumeL !== undefined ? ` · ${e.bagVolumeL} L bag` : ''}
+                          {e.note ? ` — ${e.note}` : ''}
+                        </span>
+                        <span className="text-[#747686]">{e.by}</span>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <button
             onClick={onRemove}

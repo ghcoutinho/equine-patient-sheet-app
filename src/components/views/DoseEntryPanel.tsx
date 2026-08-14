@@ -10,6 +10,9 @@ import {
 } from '../../utils/doseCalculation';
 import { ROUTES, RATE_UNITS, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
+import { stampRecorded } from '../../utils/recorded';
+import { newCriEventId } from '../../utils/cri';
+import type { CriEvent } from '../../types';
 
 export interface DoseEntryPanelProps {
   patient: Patient;
@@ -196,12 +199,30 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
   // No clinician, no write — see CLAUDE.md rule 2 and Architecture principle A.
   const hasClinician = !!clinician?.trim();
 
+  /**
+   * A CRI's opening event, so its history starts at creation rather than the
+   * event log only picking up whenever someone first logs a rate change. No
+   * event without a real volume-based rate to log — a mass-based rate can't
+   * seed a START any more than it can compute a volume (see utils/cri.ts).
+   */
+  const startCriEvents = (
+    kind: TreatmentKind,
+    rateValue: number | undefined,
+    rateUnit: string | undefined,
+  ): CriEvent[] | undefined =>
+    kind === 'CRI' && rateValue !== undefined && rateUnit
+      ? [{ id: newCriEventId(), kind: 'START', ...stampRecorded(clinician!), rateValue, rateUnit }]
+      : undefined;
+
   const addFromFormulary = () => {
     if (!selected || !result || !hasClinician) return;
     const iv = Number(intervalHours);
+    const kind: TreatmentKind = isRate || selected.isCRI ? 'CRI' : 'MEDICATION';
+    const rateValue = (isRate || selected.isCRI) && result.volume !== undefined ? result.volume : undefined;
+    const rateUnit = (isRate || selected.isCRI) && result.volume !== undefined ? result.volumeUnit : undefined;
     const treatment: Treatment = {
       id: newId('tx'),
-      kind: isRate || selected.isCRI ? 'CRI' : 'MEDICATION',
+      kind,
       drug: selected.name,
       formularyId: selected.id,
       doseText: `${dose} ${selected.doseUnit}`,
@@ -212,8 +233,9 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
       // The computed volume rate (mL/hr etc.) — already a clean value+unit
       // pair from computeDose, not re-parsed from the mg/kg/hr dosing spec
       // rateText holds.
-      rateValue: (isRate || selected.isCRI) && result.volume !== undefined ? result.volume : undefined,
-      rateUnit: (isRate || selected.isCRI) && result.volume !== undefined ? result.volumeUnit : undefined,
+      rateValue,
+      rateUnit,
+      criEvents: startCriEvents(kind, rateValue, rateUnit),
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field
@@ -231,6 +253,11 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
     const name = manualName.trim();
     if (!name || !hasClinician) return;
     const iv = Number(intervalHours);
+    const manualRateValueNum =
+      manualKind !== 'MEDICATION' && Number.isFinite(Number(manualRateValue)) && manualRateValue.trim()
+        ? Number(manualRateValue)
+        : undefined;
+    const manualRateUnitVal = manualRateValueNum !== undefined ? manualRateUnit : undefined;
     const treatment: Treatment = {
       id: newId('tx'),
       kind: manualKind,
@@ -246,11 +273,9 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
         manualKind === 'MEDICATION' || !manualRateValue.trim()
           ? undefined
           : `${manualRateValue.trim()} ${manualRateUnit}`,
-      rateValue:
-        manualKind !== 'MEDICATION' && Number.isFinite(Number(manualRateValue)) && manualRateValue.trim()
-          ? Number(manualRateValue)
-          : undefined,
-      rateUnit: manualKind !== 'MEDICATION' && manualRateValue.trim() ? manualRateUnit : undefined,
+      rateValue: manualRateValueNum,
+      rateUnit: manualRateUnitVal,
+      criEvents: startCriEvents(manualKind, manualRateValueNum, manualRateUnitVal),
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field

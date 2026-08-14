@@ -283,6 +283,34 @@ export interface Treatment {
   stopReason?: string;
   prescribedBy?: string;
   administrations: Administration[];
+  /**
+   * A CRI's history as it actually ran — start, rate changes, bag changes,
+   * pauses and the stop, each stamped who/when. Additive: a CRI created
+   * before this existed has no event log, and `utils/cri.ts` falls back to
+   * treating `startedAt`→`stoppedAt` (or now) as one constant-rate segment
+   * at the treatment's own `rateValue`/`rateUnit` — the log adds granularity
+   * for rate changes and pauses, it isn't required to compute a volume at
+   * all. Architecture principle D: a continuous infusion is not a dose, and
+   * infused volume is derived from rate × elapsed time, never typed.
+   */
+  criEvents?: CriEvent[];
+  note?: string;
+}
+
+export type CriEventKind = 'START' | 'RATE_CHANGE' | 'BAG_CHANGE' | 'PAUSE' | 'RESUME' | 'STOP';
+
+/**
+ * One event in a CRI's running history. `rateValue`/`rateUnit` are set on
+ * START and RATE_CHANGE (the new rate taking effect from this point); absent
+ * on PAUSE/RESUME/STOP/BAG_CHANGE, where the previous rate carries over.
+ */
+export interface CriEvent extends Recorded {
+  id: string;
+  kind: CriEventKind;
+  rateValue?: number;
+  rateUnit?: string;
+  /** New bag's labelled volume, for BAG_CHANGE — informational; volume infused is computed from rate and elapsed time, not from bag size. */
+  bagVolumeL?: number;
   note?: string;
 }
 
