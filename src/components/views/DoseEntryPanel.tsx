@@ -8,7 +8,7 @@ import {
   defaultConcentrationUnit,
   concentrationUnitOptions,
 } from '../../utils/doseCalculation';
-import { ROUTES, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
+import { ROUTES, RATE_UNITS, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 
 export interface DoseEntryPanelProps {
@@ -67,7 +67,11 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
   // Shared order footer
   const [route, setRoute] = useState<string>('IV');
   const [intervalHours, setIntervalHours] = useState<string>('');
-  const [rateText, setRateText] = useState('');
+  // Manual continuous rate — structured (value + unit from a fixed list)
+  // rather than free text, so it can feed CRI volume math the same way a
+  // formulary rate does.
+  const [manualRateValue, setManualRateValue] = useState('');
+  const [manualRateUnit, setManualRateUnit] = useState<string>(RATE_UNITS[0]);
   const [startedAt, setStartedAt] = useState(() => isoLocal(new Date()));
   const [note, setNote] = useState('');
 
@@ -151,7 +155,6 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
     setRoute(normaliseRoute(selected.route?.[0]));
     const iv = intervalFromFrequency(selected.frequency);
     setIntervalHours(selected.isCRI || !iv ? '' : String(iv));
-    setRateText(selected.isCRI ? `${selected.doseDefault} ${selected.doseUnit}` : '');
   }, [selected]);
 
   // Manual mode's own live preview, using the same engine as the formulary
@@ -179,7 +182,8 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
     setManualConcentration('');
     setRoute('IV');
     setIntervalHours('');
-    setRateText('');
+    setManualRateValue('');
+    setManualRateUnit(RATE_UNITS[0]);
     setNote('');
     setStartedAt(isoLocal(new Date()));
   };
@@ -205,6 +209,11 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
       route,
       intervalHours: !isRate && !selected.isCRI && Number.isFinite(iv) && iv > 0 ? iv : undefined,
       rateText: isRate || selected.isCRI ? `${dose} ${selected.doseUnit}` : undefined,
+      // The computed volume rate (mL/hr etc.) — already a clean value+unit
+      // pair from computeDose, not re-parsed from the mg/kg/hr dosing spec
+      // rateText holds.
+      rateValue: (isRate || selected.isCRI) && result.volume !== undefined ? result.volume : undefined,
+      rateUnit: (isRate || selected.isCRI) && result.volume !== undefined ? result.volumeUnit : undefined,
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field
@@ -233,7 +242,15 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
           : undefined,
       route: route || undefined,
       intervalHours: manualKind === 'MEDICATION' && Number.isFinite(iv) && iv > 0 ? iv : undefined,
-      rateText: manualKind === 'MEDICATION' ? undefined : rateText.trim() || undefined,
+      rateText:
+        manualKind === 'MEDICATION' || !manualRateValue.trim()
+          ? undefined
+          : `${manualRateValue.trim()} ${manualRateUnit}`,
+      rateValue:
+        manualKind !== 'MEDICATION' && Number.isFinite(Number(manualRateValue)) && manualRateValue.trim()
+          ? Number(manualRateValue)
+          : undefined,
+      rateUnit: manualKind !== 'MEDICATION' && manualRateValue.trim() ? manualRateUnit : undefined,
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field
@@ -764,17 +781,35 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
                 ? 'Continuous — rate'
                 : 'Interval (h)'}
             </label>
-            {(mode === 'formulary' && (isRate || selected?.isCRI)) || (mode === 'manual' && manualKind !== 'MEDICATION') ? (
+            {mode === 'formulary' && (isRate || selected?.isCRI) ? (
               <input
                 id="order-interval"
-                value={
-                  mode === 'formulary' ? `${dose} ${selected?.doseUnit ?? ''}` : rateText
-                }
-                onChange={(e) => mode === 'manual' && setRateText(e.target.value)}
-                readOnly={mode === 'formulary'}
-                placeholder="rate, e.g. 2 mL/kg/hr"
+                value={`${dose} ${selected?.doseUnit ?? ''}`}
+                readOnly
                 className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white disabled:bg-[#f8f9ff] focus:outline-none focus:border-[#0037b0]"
               />
+            ) : mode === 'manual' && manualKind !== 'MEDICATION' ? (
+              <div className="flex gap-2">
+                <input
+                  id="order-interval"
+                  value={manualRateValue}
+                  onChange={(e) => setManualRateValue(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="e.g. 2"
+                  className="w-1/2 border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+                />
+                <select
+                  value={manualRateUnit}
+                  onChange={(e) => setManualRateUnit(e.target.value)}
+                  className="w-1/2 border border-[#c4c5d7] rounded px-2 py-1.5 text-sm bg-white focus:outline-none focus:border-[#0037b0]"
+                >
+                  {RATE_UNITS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </div>
             ) : (
               <input
                 id="order-interval"

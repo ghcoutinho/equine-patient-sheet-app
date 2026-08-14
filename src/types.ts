@@ -264,6 +264,17 @@ export interface Treatment {
   intervalHours?: number;
   /** Rate for continuous lines, e.g. "2 mL/kg/hr" or "0.05 mg/kg/min". */
   rateText?: string;
+  /**
+   * The same rate as `rateText`, structured. Formulary CRIs get this from the
+   * computed volume rate (`result.volume`/`result.volumeUnit` in
+   * DoseEntryPanel — already a clean value+unit pair, not re-parsed from
+   * text); manual entries get it from dedicated value/unit inputs instead of
+   * free text. `rateText` stays the display string and the only field older
+   * stored treatments have — `rateValue`/`rateUnit` are additive and may be
+   * absent on a treatment created before this existed.
+   */
+  rateValue?: number;
+  rateUnit?: string;
   /** ISO timestamp: time of application, or time the infusion was started. */
   startedAt: string;
   /** ISO timestamp; set when the treatment is discontinued. */

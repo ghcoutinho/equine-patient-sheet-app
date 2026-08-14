@@ -64,6 +64,23 @@ export const ROUTES = [
 
 export type Route = (typeof ROUTES)[number];
 
+/**
+ * Units offered for a manually-entered continuous rate, so a structured
+ * `rateValue`/`rateUnit` pair can be captured even outside the formulary
+ * calculator — a fixed list rather than free text for the same reason
+ * `ROUTES` is, and the prerequisite for computing infused volume from rate
+ * and elapsed time rather than asking the clinician to track it by hand.
+ */
+export const RATE_UNITS = [
+  'mL/hr',
+  'mL/kg/hr',
+  'mg/kg/hr',
+  'mg/kg/min',
+  'mcg/kg/min',
+  'mU/kg/min',
+  'IU/hr',
+] as const;
+
 /** Map a formulary route abbreviation onto the canonical list. */
 export function normaliseRoute(raw: string | undefined): string {
   const r = (raw || '').trim();
