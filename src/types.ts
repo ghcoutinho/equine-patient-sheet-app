@@ -229,6 +229,15 @@ export interface Administration extends Recorded {
   /** What was actually given, e.g. "11.44 mL". */
   amountText?: string;
   note?: string;
+  /**
+   * Set only when this dose was given ahead of its due window and the
+   * clinician confirmed it anyway. Prescribing and administering are
+   * different acts (Architecture principle C) — an early dose is blocked by
+   * default and only proceeds with a logged reason, never a silent double
+   * dose and never an absolute block that just pushes the error into false
+   * charting.
+   */
+  earlyOverrideReason?: string;
 }
 
 /**

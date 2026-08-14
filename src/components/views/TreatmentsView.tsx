@@ -3,6 +3,7 @@ import type { Patient, Treatment, TreatmentKind } from '../../types';
 import {
   orderedTreatments,
   treatmentTimeline,
+  treatmentStatus,
   TREATMENT_KIND_LABEL,
   TREATMENT_STATE_STYLE,
   clockTime,
@@ -78,8 +79,32 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
     setAdding(false);
   };
 
+  /**
+   * A dose recorded well before the next one is actually due — the same
+   * double-dose risk the vision's cross-device interlock targets, here on a
+   * single device against a second click. Soft-stopped, not hard-blocked
+   * (principle C): the clinician can still confirm it with a reason, which
+   * is logged on the administration rather than silently allowed or silently
+   * refused. A first dose (no prior administration) is never flagged — the
+   * interval has nothing to anchor "early" against yet.
+   */
+  const isEarlyDose = (t: Treatment) => {
+    const status = treatmentStatus(t, now);
+    return status.state === 'RUNNING' && status.lastGivenAt !== undefined;
+  };
+
   const recordGiven = (t: Treatment) => {
     if (!hasClinician) return;
+    let earlyOverrideReason: string | undefined;
+    if (isEarlyDose(t)) {
+      const status = treatmentStatus(t, now);
+      const reason = window.prompt(
+        `${t.drug} isn't due until ${status.nextDueAt ? clockTime(status.nextDueAt) : 'later'} — ` +
+          `recording it now risks a double dose. Enter a reason to give it anyway, or Cancel to skip.`,
+      );
+      if (!reason || !reason.trim()) return;
+      earlyOverrideReason = reason.trim();
+    }
     const recorded = stampRecorded(clinician);
     write(
       (patient.treatments ?? []).map((x) =>
@@ -92,6 +117,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                   id: newId('adm'),
                   ...recorded,
                   amountText: x.amountText,
+                  earlyOverrideReason,
                 },
               ],
             }
@@ -479,6 +505,9 @@ const TreatmentRow: React.FC<RowProps> = ({
   const t = status.treatment;
   const style = TREATMENT_STATE_STYLE[status.state];
   const continuous = !t.intervalHours && t.kind !== 'MEDICATION';
+  // Mirrors TreatmentsView's isEarlyDose — recomputed here rather than passed
+  // down, since this row already has the status that decision reads.
+  const early = status.state === 'RUNNING' && status.lastGivenAt !== undefined;
 
   return (
     <div
@@ -531,11 +560,23 @@ const TreatmentRow: React.FC<RowProps> = ({
             <button
               onClick={onGiven}
               disabled={disabled}
-              title={disabled ? 'Set your name in the top bar before recording a dose' : undefined}
-              className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={
+                disabled
+                  ? 'Set your name in the top bar before recording a dose'
+                  : early
+                    ? `Not due until ${status.nextDueAt ? clockTime(status.nextDueAt) : 'later'} — will ask for a reason`
+                    : undefined
+              }
+              className={`px-2.5 py-1 text-xs font-label-caps rounded flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
+                early
+                  ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/40 hover:bg-[#FEF3C7]'
+                  : 'bg-[#047857] text-white hover:bg-[#065f46]'
+              }`}
             >
-              <span className="material-symbols-outlined text-sm">check</span>
-              <span className="hidden sm:inline">Given</span>
+              <span className="material-symbols-outlined text-sm">
+                {early ? 'warning' : 'check'}
+              </span>
+              <span className="hidden sm:inline">{early ? 'Given early?' : 'Given'}</span>
             </button>
           )}
           {status.state !== 'STOPPED' ? (
@@ -625,15 +666,20 @@ const TreatmentRow: React.FC<RowProps> = ({
                 {[...t.administrations]
                   .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
                   .map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex justify-between items-center px-2.5 py-1.5 font-derived-value text-xs"
-                    >
-                      <span className="text-[#0b1c30]">
-                        {clockTime(a.at)} · {dayLabel(a.at, now)}
-                        {a.amountText ? ` · ${a.amountText}` : ''}
-                      </span>
-                      <span className="text-[#747686]">{a.by || 'Unattributed'}</span>
+                    <li key={a.id} className="px-2.5 py-1.5 font-derived-value text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[#0b1c30]">
+                          {clockTime(a.at)} · {dayLabel(a.at, now)}
+                          {a.amountText ? ` · ${a.amountText}` : ''}
+                        </span>
+                        <span className="text-[#747686]">{a.by || 'Unattributed'}</span>
+                      </div>
+                      {a.earlyOverrideReason && (
+                        <div className="mt-0.5 flex items-center gap-1 text-[#B45309]">
+                          <span className="material-symbols-outlined text-xs">warning</span>
+                          <span>Given early — {a.earlyOverrideReason}</span>
+                        </div>
+                      )}
                     </li>
                   ))}
               </ul>
