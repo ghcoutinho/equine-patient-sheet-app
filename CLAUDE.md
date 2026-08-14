@@ -218,6 +218,48 @@ through it: both are clinical event times the clinician chooses, not write
 timestamps, so pairing them with "now" would silently override a backdated
 entry. This closes out Track 1.
 
+### Medication safety (Track 2, 2026-08-14)
+
+Principle C (prescribing and administering are different acts) and principle D
+(a continuous infusion is not a dose) landed in three pieces.
+
+**Soft-stop on early doses.** `recordGiven` in `TreatmentsView` used to write
+an administration unconditionally — nothing stopped a second "Given" click
+minutes after the first from double-dosing a patient. It now checks
+`treatmentStatus`: a dose is "early" when the order is `RUNNING` (not yet due)
+and a prior dose already exists to anchor the interval against — a first dose
+is never flagged. An early dose prompts for a reason; no reason, no write. The
+reason is stored on `Administration.earlyOverrideReason` and shown inline with
+a warning icon, so the override is visible on the sheet, not buried. This is
+the one-device version of the vision's cross-device duplicate-dose interlock,
+which stays blocked until there's a backend (see the storage note above) —
+but the same risk from a second click on one device needed no backend at all.
+
+**Structured rate.** `Treatment` gained `rateValue`/`rateUnit`, additive next
+to the existing free-text `rateText`. The formulary CRI path already computes
+a clean volume rate (`result.volume`/`result.volumeUnit` from `computeDose` —
+e.g. `2.08 mL/hr`, not the `mg/kg/hr` dosing spec) and just assigns it; manual
+entry's free-text rate input was replaced with a number field plus a unit
+select drawn from a new fixed list (`RATE_UNITS` in `utils/treatments.ts`),
+the same reasoning `ROUTES` already uses. `rateText` is still derived and
+written for both paths, so no existing display site needed to change.
+
+**CRI event log.** `Treatment` gained `criEvents?: CriEvent[]` — additive; a
+CRI created before this has none. Each event
+(`START`/`RATE_CHANGE`/`BAG_CHANGE`/`PAUSE`/`RESUME`/`STOP`) stamps who/when
+via `Recorded`. `utils/cri.ts`'s `infusedVolumeMl` walks the log, accumulating
+rate × elapsed time across running segments and excluding paused/stopped time;
+a CRI with no log falls back to one constant segment from `startedAt` to
+`stoppedAt`/now at the treatment's own rate, so old CRIs still get a computed
+volume. Consistent with rule 1, a mass-based rate (`mg/kg/hr`, `mcg/kg/min`)
+never gets guess-converted to a volume without a concentration —
+`infusedVolumeMl` returns `undefined` rather than fabricate one.
+`DoseEntryPanel` seeds a `START` event whenever a CRI is created with a real
+volume-based rate; `TreatmentsView` adds Rate/Bag/Pause actions and a Resume
+for a paused line, and `Stop` now also appends a `STOP` event for a CRI
+alongside the `stoppedAt`/`stoppedBy`/`stopReason` fields it already wrote.
+This closes out Track 2.
+
 ---
 
 ## Stack and commands
@@ -299,6 +341,7 @@ and one tab with three different names.
 | `data/patientIdentity.ts` | Age from date of birth, sex, which mark to draw |
 | `utils/admission.ts` | Current-admission boundary — see below |
 | `utils/recorded.ts` | `stampRecorded` — the only place `{at, by}` is constructed |
+| `utils/cri.ts` | `infusedVolumeMl` — CRI volume from rate × elapsed time |
 
 ### Two invariants worth stating
 
@@ -318,7 +361,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 267 tests across 13 files in
+own — `vite.config.ts` is enough). 282 tests across 14 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -364,6 +407,12 @@ class of defect a unit test catches and a reviewer's eye does not):
   round from a previous admission.
 - `recorded.ts` — `stampRecorded` always returns a non-empty `by` alongside a
   valid `at` from a single call.
+- `cri.ts` — `infusedVolumeMl` integrates constant and rate-changed segments
+  correctly, excludes paused/stopped time, refuses to guess a volume from a
+  mass-based rate, and matches the legacy single-segment fallback when there
+  is no event log; `currentRate` prefers the log over the treatment's own
+  rate; `isPaused` is true only when the most recent event is an unmatched
+  `PAUSE`.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
