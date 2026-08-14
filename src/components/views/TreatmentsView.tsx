@@ -15,6 +15,7 @@ import {
 } from '../../utils/treatments';
 import { DoseEntryPanel } from './DoseEntryPanel';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
+import { stampRecorded } from '../../utils/recorded';
 
 interface TreatmentsViewProps {
   patient: Patient;
@@ -79,7 +80,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
 
   const recordGiven = (t: Treatment) => {
     if (!hasClinician) return;
-    const at = new Date();
+    const recorded = stampRecorded(clinician);
     write(
       (patient.treatments ?? []).map((x) =>
         x.id === t.id
@@ -89,8 +90,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                 ...(x.administrations ?? []),
                 {
                   id: newId('adm'),
-                  at: at.toISOString(),
-                  by: clinician || 'Unattributed',
+                  ...recorded,
                   amountText: x.amountText,
                 },
               ],
@@ -103,13 +103,14 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   const stopTreatment = (t: Treatment) => {
     if (!hasClinician) return;
     const reason = window.prompt(`Reason for stopping ${t.drug}? (optional)`) ?? undefined;
+    const stopped = stampRecorded(clinician);
     write(
       (patient.treatments ?? []).map((x) =>
         x.id === t.id
           ? {
               ...x,
-              stoppedAt: new Date().toISOString(),
-              stoppedBy: clinician || 'Unattributed',
+              stoppedAt: stopped.at,
+              stoppedBy: stopped.by,
               stopReason: reason?.trim() || undefined,
             }
           : x,

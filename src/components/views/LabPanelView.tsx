@@ -134,7 +134,11 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
       sampleType,
       values: numericDraft,
       note: note.trim() || undefined,
-      recordedBy: clinician || 'Unattributed', // save() blocks the write until a clinician is set
+      // save() blocks the write until a clinician is set. collectedAt is the
+      // clinical event time the user chose, not the write time, so this
+      // doesn't route through stampRecorded the way other write paths do —
+      // there's no separate "when was this saved" field to pair it with.
+      recordedBy: clinician,
     };
     if (editingId === 'new') {
       const panel: LabPanel = { id: newId('lab'), ...base };

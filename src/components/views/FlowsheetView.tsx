@@ -6,6 +6,7 @@ import { severityOf } from '../../data/clinicalAssessments';
 import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { columnsInCurrentAdmission, earlierAdmissionColumnCount, latestColumn } from '../../utils/admission';
+import { stampRecorded } from '../../utils/recorded';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { BODY_SYSTEM_META } from '../../data/bodySystems';
@@ -151,11 +152,12 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     const c = patient.flowsheetHistory[idx];
     const isFoal = patient.isFoal || patient.category === 'NEONATAL_FOAL';
     const t = num(editDraft.temperature);
+    const edited = stampRecorded(clinician!);
     const updated: FlowsheetColumn = {
       ...c,
       time: editDraft.time || c.time,
-      editedBy: clinician,
-      editedAt: new Date().toISOString(),
+      editedBy: edited.by,
+      editedAt: edited.at,
       vitals: {
         ...c.vitals,
         heartRate: num(editDraft.heartRate),
@@ -183,11 +185,12 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
 
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const recorded = stampRecorded(clinician!);
 
     const newColumn: FlowsheetColumn = {
       time: timeStr,
-      recordedAt: now.toISOString(),
-      recordedBy: clinician,
+      recordedAt: recorded.at,
+      recordedBy: recorded.by,
       vitals: {
         heartRate: newHR ? parseFloat(newHR) : undefined,
         temperatureC: newTemp ? parseFloat(newTemp) : undefined,

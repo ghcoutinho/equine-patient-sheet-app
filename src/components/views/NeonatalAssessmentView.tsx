@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Patient, ViewTab, FlowsheetColumn } from '../../types';
 import { latestColumn } from '../../utils/admission';
+import { stampRecorded } from '../../utils/recorded';
 import { columnToEntry, foalSurvivalPanel } from '../../utils/intelligence';
 import { neonatalSepsisPanel } from '../../utils/neonatalSepsisScore';
 import { newId } from '../../utils/treatments';
@@ -77,14 +78,15 @@ export const NeonatalAssessmentView: React.FC<NeonatalAssessmentViewProps> = ({
     if (!hasClinician) return;
     if (glucoseValue === undefined && iggValue === undefined) return;
     const now = new Date();
+    const recorded = stampRecorded(clinician!);
     const column: FlowsheetColumn = {
       id: newId('round'),
       time: `${now.getHours().toString().padStart(2, '0')}:${now
         .getMinutes()
         .toString()
         .padStart(2, '0')}`,
-      recordedAt: now.toISOString(),
-      recordedBy: clinician || 'Unattributed', // saveLabs blocks the write until a clinician is set
+      recordedAt: recorded.at,
+      recordedBy: recorded.by,
       vitals: {},
       gi: {},
       labs: { glucose: glucoseValue, igg: iggValue },

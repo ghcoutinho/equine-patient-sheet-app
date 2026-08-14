@@ -99,7 +99,9 @@ describe('treatmentStatus — intermittent orders', () => {
       intervalHours: 6,
       startedAt: at(-6 * HOUR),
       administrations:
-        lastGivenOffsetMs === undefined ? [] : [{ id: 'a1', at: at(lastGivenOffsetMs) }],
+        lastGivenOffsetMs === undefined
+          ? []
+          : [{ id: 'a1', at: at(lastGivenOffsetMs), by: 'Dr Test' }],
     });
 
   it('is OVERDUE only past five minutes late', () => {
@@ -167,9 +169,9 @@ describe('lastAdministration', () => {
   it('is the most recent dose regardless of the order they were recorded in', () => {
     const t = treatment({
       administrations: [
-        { id: 'a1', at: at(-6 * HOUR) },
-        { id: 'a3', at: at(-1 * HOUR) },
-        { id: 'a2', at: at(-3 * HOUR) },
+        { id: 'a1', at: at(-6 * HOUR), by: 'Dr Test' },
+        { id: 'a3', at: at(-1 * HOUR), by: 'Dr Test' },
+        { id: 'a2', at: at(-3 * HOUR), by: 'Dr Test' },
       ],
     });
     expect(lastAdministration(t)?.id).toBe('a3');

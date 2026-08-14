@@ -206,7 +206,10 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
       intervalHours: !isRate && !selected.isCRI && Number.isFinite(iv) && iv > 0 ? iv : undefined,
       rateText: isRate || selected.isCRI ? `${dose} ${selected.doseUnit}` : undefined,
       startedAt: new Date(startedAt).toISOString(),
-      prescribedBy: clinician || 'Unattributed',
+      // startedAt is the clinical start time the clinician chose, not the
+      // write time — there's no separate "when was this order entered" field
+      // to pair it with, so this doesn't route through stampRecorded.
+      prescribedBy: clinician!,
       administrations: [],
       note: [`Calculated at ${weightKg} kg`, note.trim() || undefined].filter(Boolean).join(' — '),
     };
@@ -232,7 +235,10 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
       intervalHours: manualKind === 'MEDICATION' && Number.isFinite(iv) && iv > 0 ? iv : undefined,
       rateText: manualKind === 'MEDICATION' ? undefined : rateText.trim() || undefined,
       startedAt: new Date(startedAt).toISOString(),
-      prescribedBy: clinician || 'Unattributed',
+      // startedAt is the clinical start time the clinician chose, not the
+      // write time — there's no separate "when was this order entered" field
+      // to pair it with, so this doesn't route through stampRecorded.
+      prescribedBy: clinician!,
       administrations: [],
       note: note.trim() || undefined,
     };

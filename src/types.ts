@@ -11,6 +11,28 @@ export type PatientStatus =
 export type PatientLifecycle = 'AWAITING_ARRIVAL' | 'ACTIVE' | 'DISCHARGED' | 'ARCHIVED';
 
 /**
+ * Who and when — Architecture principle A. Any write stamps this at the point
+ * of entry, never at save time. Built by `stampRecorded` in
+ * `utils/recorded.ts`, which is the only place a `Recorded` value is ever
+ * constructed, so `at` and `by` can never be set independently of each other.
+ *
+ * Existing write paths (`FlowsheetColumn.recordedAt`/`recordedBy`,
+ * `Treatment.startedAt`/`prescribedBy`, `LabPanel.collectedAt`/`recordedBy`,
+ * `Administration.at`/`by`) keep their own flat field names rather than
+ * nesting a `recorded: Recorded` object — nesting would change the shape of
+ * data already sitting in every clinician's `localStorage`, and
+ * `SCHEMA_VERSION` bumping to account for it would wipe every stored patient.
+ * `Recorded` is the shared shape those field pairs are held to, not a new
+ * field on `Patient`.
+ */
+export interface Recorded {
+  /** ISO timestamp, stamped at the moment of entry. */
+  at: string;
+  /** The clinician charting — never "Unattributed"; see CLAUDE.md rule 2. */
+  by: string;
+}
+
+/**
  * Body systems involved in the primary problem. Drives the icon strip on the
  * flowsheet so the system under treatment is legible at a glance.
  */
@@ -202,11 +224,8 @@ export interface ScheduledTask {
 export type TreatmentKind = 'MEDICATION' | 'FLUID' | 'CRI';
 
 /** A single recorded administration of an intermittent medication. */
-export interface Administration {
+export interface Administration extends Recorded {
   id: string;
-  /** ISO timestamp of when it was actually given. */
-  at: string;
-  by?: string;
   /** What was actually given, e.g. "11.44 mL". */
   amountText?: string;
   note?: string;

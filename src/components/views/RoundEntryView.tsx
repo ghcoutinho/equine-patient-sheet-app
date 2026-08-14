@@ -25,6 +25,7 @@ import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { DEFAULT_GUT_SOUNDS, summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { latestColumn } from '../../utils/admission';
+import { stampRecorded } from '../../utils/recorded';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
 import { completeTasksForRound } from '../../utils/schedule';
@@ -257,11 +258,16 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
 
     const hasAny = (o: object) => Object.values(o).some((v) => v !== undefined);
 
+    // buildColumn() also drives the live preview, where clinician may not be
+    // set yet — handleSaveRound blocks the actual write until it is, so the
+    // fallback here is only ever seen by the unsaved draft.
+    const recorded = stampRecorded(clinician || 'Unattributed');
+
     return {
       id: `${now.getTime()}`,
       time: timeStr,
-      recordedAt: now.toISOString(),
-      recordedBy: clinician || 'Unattributed', // buildColumn() also drives the live preview, where clinician may not be set yet — handleSaveRound blocks the actual write until it is
+      recordedAt: recorded.at,
+      recordedBy: recorded.by,
       vitals: {
         heartRate: toNumber(hr),
         temperatureC: !patient.isFoal ? numTemp : undefined,
