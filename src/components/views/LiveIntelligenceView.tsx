@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { Patient, ViewTab } from '../../types';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { latestColumn } from '../../utils/admission';
+import { nsaidGivenWithin } from '../../utils/nsaid';
 import { columnToEntry, buildPanels } from '../../utils/intelligence';
 import { getPrognosticFlags } from '../../utils/prognosis';
 import { evaluateBiomarkers } from '../../utils/biomarkerEvaluator';
@@ -42,7 +43,12 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
     patient.flowsheetHistory.length > 1
       ? patient.flowsheetHistory[patient.flowsheetHistory.length - 2]
       : undefined;
-  const triggers = evaluateCallSurgeonTriggers(latest, undefined, previous);
+  const nsaidRecently = nsaidGivenWithin(
+    patient,
+    latest?.recordedAt ? new Date(latest.recordedAt) : now,
+    4,
+  );
+  const triggers = evaluateCallSurgeonTriggers(latest, undefined, previous, nsaidRecently);
   const entry = useMemo(() => columnToEntry(patient, latest), [patient, latest]);
   const panels = useMemo(() => buildPanels(patient, entry), [patient, entry]);
   const flags = useMemo(() => getPrognosticFlags(entry), [entry]);
@@ -230,16 +236,22 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
                   className={`rounded p-2.5 border ${
                     t.severity === 'critical'
                       ? 'bg-[#FEF2F2] border-[#B91C1C]/40'
-                      : 'bg-[#FFF7ED] border-[#C2410C]/30'
+                      : t.severity === 'warning'
+                        ? 'bg-[#FFF7ED] border-[#C2410C]/30'
+                        : 'bg-[#FFFBEB] border-[#B45309]/30'
                   }`}
                 >
                   <div className="flex items-start gap-2">
                     <span
                       className={`material-symbols-outlined text-base ${
-                        t.severity === 'critical' ? 'text-[#B91C1C]' : 'text-[#C2410C]'
+                        t.severity === 'critical'
+                          ? 'text-[#B91C1C]'
+                          : t.severity === 'warning'
+                            ? 'text-[#C2410C]'
+                            : 'text-[#B45309]'
                       }`}
                     >
-                      {t.severity === 'critical' ? 'warning' : 'info'}
+                      {t.severity === 'critical' ? 'warning' : t.severity === 'warning' ? 'info' : 'visibility'}
                     </span>
                     <div className="min-w-0">
                       <div className="font-body-md text-sm text-[#0b1c30] font-semibold leading-tight">

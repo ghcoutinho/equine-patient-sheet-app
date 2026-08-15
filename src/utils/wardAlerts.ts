@@ -1,6 +1,7 @@
 import type { Patient } from '../types';
 import { columnsInCurrentAdmission, latestColumn } from './admission';
 import { evaluateCallSurgeonTriggers, type ClinicalTrigger } from './callSurgeonTriggers';
+import { nsaidGivenWithin } from './nsaid';
 
 /**
  * Ward-wide deterioration alerts.
@@ -23,7 +24,7 @@ export interface WardAlert {
   triggers: ClinicalTrigger[];
 }
 
-const rank: Record<ClinicalTrigger['severity'], number> = { critical: 2, warning: 1 };
+const rank: Record<ClinicalTrigger['severity'], number> = { critical: 3, warning: 2, watch: 1 };
 
 /** The single most severe trigger, for a one-line reason on the card. */
 export function topTrigger(triggers: ClinicalTrigger[]): ClinicalTrigger | undefined {
@@ -34,7 +35,9 @@ export function wardAlert(patient: Patient): WardAlert {
   const scoped = columnsInCurrentAdmission(patient);
   const latest = latestColumn(patient);
   const previous = scoped.length > 1 ? scoped[scoped.length - 2] : undefined;
-  const triggers = evaluateCallSurgeonTriggers(latest, undefined, previous);
+  const at = latest?.recordedAt ? new Date(latest.recordedAt) : new Date();
+  const nsaidRecently = nsaidGivenWithin(patient, at, 4);
+  const triggers = evaluateCallSurgeonTriggers(latest, undefined, previous, nsaidRecently);
 
   const severity: WardSeverity =
     patient.sirsCriteriaMet || triggers.some((t) => t.severity === 'critical')

@@ -24,6 +24,7 @@ import { ManureRecorder } from '../ui/ManureRecorder';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { DEFAULT_GUT_SOUNDS, summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
+import { nsaidGivenWithin } from '../../utils/nsaid';
 import { latestColumn } from '../../utils/admission';
 import { stampRecorded } from '../../utils/recorded';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
@@ -299,7 +300,12 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
 
   const draft = buildColumn();
   // `latest` is the previous charted round; the draft is the one being typed.
-  const liveTriggers = evaluateCallSurgeonTriggers(draft, undefined, latest);
+  const liveTriggers = evaluateCallSurgeonTriggers(
+    draft,
+    undefined,
+    latest,
+    nsaidGivenWithin(patient, new Date(), 4),
+  );
 
   // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
   // "Unattributed" was a bug, not a default; the block below has no override.
@@ -524,7 +530,11 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
               <li key={t.id} className="px-4 py-2 flex items-start gap-2 text-sm">
                 <span
                   className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    t.severity === 'critical' ? 'bg-[#B91C1C]' : 'bg-[#C2410C]'
+                    t.severity === 'critical'
+                      ? 'bg-[#B91C1C]'
+                      : t.severity === 'warning'
+                        ? 'bg-[#C2410C]'
+                        : 'bg-[#B45309]'
                   }`}
                   aria-hidden
                 />

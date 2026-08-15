@@ -6,6 +6,7 @@ import { severityOf } from '../../data/clinicalAssessments';
 import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { columnsInCurrentAdmission, earlierAdmissionColumnCount, latestColumn } from '../../utils/admission';
+import { nsaidGivenWithin } from '../../utils/nsaid';
 import { stampRecorded } from '../../utils/recorded';
 import { classifyAgainstReference } from '../../utils/referenceLookup';
 import { ageClassFor } from '../../data/ageStratifiedReferenceRanges';
@@ -314,10 +315,17 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     );
   };
 
+  const latestForTriggers = latestColumn(patient);
+  const nsaidRecently = nsaidGivenWithin(
+    patient,
+    latestForTriggers?.recordedAt ? new Date(latestForTriggers.recordedAt) : now,
+    4,
+  );
   const triggers = evaluateCallSurgeonTriggers(
-    latestColumn(patient),
+    latestForTriggers,
     undefined,
     visibleColumns.length > 1 ? visibleColumns[visibleColumns.length - 2] : undefined,
+    nsaidRecently,
   );
 
   return (
@@ -976,7 +984,11 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                     >
                       <span
                         className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          t.severity === 'critical' ? 'bg-[#B91C1C]' : 'bg-[#C2410C]'
+                          t.severity === 'critical'
+                            ? 'bg-[#B91C1C]'
+                            : t.severity === 'warning'
+                              ? 'bg-[#C2410C]'
+                              : 'bg-[#B45309]'
                         }`}
                         aria-hidden
                       />

@@ -1,4 +1,4 @@
-import type { FlowsheetColumn, TriggerThresholds } from '../types';
+import type { FlowsheetColumn, TriggerThresholds, AssessmentSeverity } from '../types';
 import { summariseGutSounds } from './gutSounds';
 import { severityOf } from '../data/clinicalAssessments';
 import {
@@ -11,6 +11,9 @@ import {
   readReflux,
   REFLUX,
   readHeartRate,
+  readLactateTrend,
+  readPyrexia,
+  readTemperatureTrend,
 } from '../data/colicThresholds';
 
 /**
@@ -44,7 +47,13 @@ export interface ClinicalTrigger {
   evidence: string;
   /** The rule that fired. */
   rule: string;
-  severity: 'warning' | 'critical';
+  /**
+   * Three tiers, not two — 'watch' is a genuine published-but-lower-priority
+   * finding (e.g. mild pyrexia), not a rounding of 'warning'. Reusing
+   * `AssessmentSeverity`'s scale (minus 'normal', which a fired trigger never
+   * is) rather than a bespoke type.
+   */
+  severity: Exclude<AssessmentSeverity, 'normal'>;
 }
 
 /** True only for real, finite numbers — a charted 0 counts, an empty cell does not. */
@@ -55,6 +64,14 @@ export function evaluateCallSurgeonTriggers(
   thresholds: TriggerThresholds = DEFAULT_TRIGGER_THRESHOLDS,
   /** The round before this one. Needed for every trend-based trigger. */
   previous?: FlowsheetColumn,
+  /**
+   * Whether an NSAID has been charted as given within the last few hours
+   * (see `utils/nsaid.ts`) — NSAIDs mask fever, so the pyrexia tiers shift
+   * down when true. Callers compute this from `patient.treatments`, not
+   * this function, so the trigger engine stays a pure function of the
+   * charted round(s) it's given.
+   */
+  nsaidGivenRecently = false,
 ): ClinicalTrigger[] {
   if (!column) return [];
   const t = thresholds;
@@ -82,14 +99,25 @@ export function evaluateCallSurgeonTriggers(
     });
   }
 
-  // 3 — Pyrexia (°C only; foals are charted in °F and are excluded here)
-  if (has(column.vitals.temperatureC) && column.vitals.temperatureC > t.temperatureC) {
+  // 3 — Pyrexia, three published tiers (°C only; foals are charted in °F
+  // and are excluded here). Replaces a single 38.5°C line that collapsed a
+  // reported gradient — see readPyrexia in colicThresholds.ts.
+  const pyrexia = readPyrexia(
+    has(column.vitals.temperatureC) ? column.vitals.temperatureC : undefined,
+    nsaidGivenRecently,
+  );
+  if (pyrexia) {
     out.push({
       id: 'temp',
-      label: 'Pyrexia',
-      evidence: `Temp ${column.vitals.temperatureC} °C`,
-      rule: `> ${t.temperatureC} °C`,
-      severity: 'warning',
+      label:
+        pyrexia.tier === 'HIGH'
+          ? 'High pyrexia'
+          : pyrexia.tier === 'SIGNIFICANT'
+            ? 'Significant pyrexia'
+            : 'Mild pyrexia',
+      evidence: `Temp ${pyrexia.temperatureC} °C`,
+      rule: pyrexia.reading,
+      severity: pyrexia.severity,
     });
   }
 
@@ -114,6 +142,25 @@ export function evaluateCallSurgeonTriggers(
       evidence: `${refluxRead.litres} L net reflux`,
       rule: `≥ ${REFLUX.significantAbove} L`,
       severity: 'critical',
+    });
+  } else if (
+    column.gi.nasogastricTube === 'In place' &&
+    previous?.gi.nasogastricTube === 'In place' &&
+    has(column.gi.refluxVolumeL) &&
+    column.gi.refluxVolumeL < REFLUX.significantAbove &&
+    has(previous.gi.refluxVolumeL) &&
+    (previous.gi.refluxVolumeL as number) < REFLUX.significantAbove
+  ) {
+    // Two consecutive checks below the significance threshold, with a tube
+    // actually in place both times — the published cue to consider removal.
+    // Never fires from a single low check, and never suggests removal of a
+    // tube the round didn't chart as present.
+    out.push({
+      id: 'reflux-removal',
+      label: 'Reflux low on two consecutive checks',
+      evidence: `${previous.gi.refluxVolumeL} L, then ${column.gi.refluxVolumeL} L`,
+      rule: `< ${REFLUX.significantAbove} L on 2 consecutive checks — consider nasogastric tube removal`,
+      severity: 'watch',
     });
   }
 
@@ -274,6 +321,38 @@ export function evaluateCallSurgeonTriggers(
       evidence: `${hrRead.previous} → ${hrRead.current} bpm`,
       rule: 'Rising across consecutive rounds',
       severity: hrRead.severity === 'critical' ? 'critical' : 'warning',
+    });
+  }
+
+  // 15 — Lactate direction, same reasoning as heart rate above.
+  const lacRead = readLactateTrend(
+    has(column.labs.lactate) ? column.labs.lactate : undefined,
+    has(previous?.labs?.lactate) ? previous?.labs?.lactate : undefined,
+  );
+  if (lacRead?.trajectory === 'RISING' && (lacRead.severity === 'warning' || lacRead.severity === 'critical')) {
+    out.push({
+      id: 'lactate-rising',
+      label: 'Lactate climbing',
+      evidence: `${lacRead.previous} → ${lacRead.current} mmol/L`,
+      rule: 'Rising across consecutive rounds',
+      severity: lacRead.severity,
+    });
+  }
+
+  // 16 — Temperature direction, NSAID-aware via the same tiers readPyrexia
+  // uses for the snapshot reading.
+  const tempRead = readTemperatureTrend(
+    has(column.vitals.temperatureC) ? column.vitals.temperatureC : undefined,
+    has(previous?.vitals?.temperatureC) ? previous?.vitals?.temperatureC : undefined,
+    nsaidGivenRecently,
+  );
+  if (tempRead?.trajectory === 'RISING' && tempRead.severity !== 'normal') {
+    out.push({
+      id: 'temp-rising',
+      label: 'Temperature climbing',
+      evidence: `${tempRead.previous} → ${tempRead.current} °C`,
+      rule: 'Rising across consecutive rounds',
+      severity: tempRead.severity,
     });
   }
 

@@ -344,6 +344,165 @@ export function readHeartRate(
   return { current: hr, previous: prev, delta, trajectory, reading, severity };
 }
 
+/**
+ * Lactate, read on the derivative — same principle as heart rate above, same
+ * dead-band reasoning (small assay noise should not flip the direction).
+ */
+export function readLactateTrend(
+  current: number | undefined,
+  previous: number | undefined,
+): HeartRateReading | undefined {
+  if (!Number.isFinite(current)) return undefined;
+  const c = current as number;
+  if (!Number.isFinite(previous)) {
+    return {
+      current: c,
+      reading: `${c} mmol/L. A single value; the direction across serial rounds carries more weight than any one reading.`,
+      severity: c > PLASMA_LACTATE_BANDS.allDiedAbove ? 'critical' : c > PLASMA_LACTATE_BANDS.allLivedBelow ? 'warning' : 'normal',
+    };
+  }
+  const p = previous as number;
+  const delta = c - p;
+  // 0.2 mmol/L absorbs typical point-of-care assay noise without hiding a real trend.
+  const trajectory: Trajectory = delta > 0.2 ? 'RISING' : delta < -0.2 ? 'FALLING' : 'STEADY';
+
+  let severity: HeartRateReading['severity'];
+  let reading: string;
+  if (trajectory === 'RISING') {
+    severity = c > PLASMA_LACTATE_BANDS.allDiedAbove ? 'critical' : 'warning';
+    reading = `${p} → ${c} mmol/L, rising by ${delta.toFixed(1)}. A climbing lactate under treatment is the adverse direction whatever the absolute value.`;
+  } else if (trajectory === 'FALLING') {
+    severity = c > PLASMA_LACTATE_BANDS.allDiedAbove ? 'warning' : 'normal';
+    reading = `${p} → ${c} mmol/L, falling by ${Math.abs(delta).toFixed(1)}. A falling lactate is the favourable direction.`;
+  } else {
+    severity = c > PLASMA_LACTATE_BANDS.allDiedAbove ? 'critical' : c > PLASMA_LACTATE_BANDS.allLivedBelow ? 'warning' : 'normal';
+    reading = `${p} → ${c} mmol/L, essentially unchanged.`;
+  }
+  return { current: c, previous: p, delta, trajectory, reading, severity };
+}
+
+/* ------------------------------------------------------------------ */
+/* Pyrexia — three published tiers, not one line                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Three fever tiers by reported clinical significance, not one arbitrary
+ * cut-off. The previous single 38.5°C line collapsed a published gradient:
+ * mild pyrexia is associated with postoperative colic and relaparotomy;
+ * >39.2°C carries a reported 5-fold odds of postoperative infection;
+ * >39.4°C is additionally associated with diarrhoea and laminitis.
+ */
+export type PyrexiaTier = 'MILD' | 'SIGNIFICANT' | 'HIGH';
+
+export const PYREXIA = {
+  mildAbove: 38.6,
+  significantAbove: 39.2,
+  highAbove: 39.4,
+  /**
+   * NSAID adjustment: −0.3°C off every tier when an NSAID has been given
+   * recently. This generalises a single adjusted pair Bauck 2023 states
+   * (>39.2°C without NSAIDs = >38.9°C with NSAIDs, a 0.3°C shift) across all
+   * three of Loomes 2025's tiers — that generalisation is this app's own
+   * synthesis of the two sources, not a number either paper states directly
+   * for all three tiers.
+   */
+  nsaidAdjustmentC: 0.3,
+  source: 'Loomes et al. 2025 (Equine Vet J 57:827-861), Table 4 — weighted prevalence and odds ratios by fever tier; NSAID adjustment generalised from Bauck 2023 (Vet Clin Equine 39:263-286)',
+  provenance: 'published' as const,
+} as const;
+
+export interface PyrexiaReading {
+  temperatureC: number;
+  tier: PyrexiaTier;
+  nsaidAdjusted: boolean;
+  reading: string;
+  severity: 'watch' | 'warning' | 'critical';
+}
+
+/**
+ * Reads a °C temperature against the three published tiers, shifted down
+ * `nsaidAdjustmentC` if an NSAID was charted recently (masks fever). Returns
+ * undefined when the temperature sits below even the mild tier — no trigger
+ * fires from a normal reading.
+ */
+export function readPyrexia(
+  temperatureC: number | undefined,
+  nsaidGivenRecently: boolean,
+): PyrexiaReading | undefined {
+  if (!Number.isFinite(temperatureC)) return undefined;
+  const t = temperatureC as number;
+  const adj = nsaidGivenRecently ? PYREXIA.nsaidAdjustmentC : 0;
+  const mild = PYREXIA.mildAbove - adj;
+  const significant = PYREXIA.significantAbove - adj;
+  const high = PYREXIA.highAbove - adj;
+
+  let tier: PyrexiaTier;
+  let severity: PyrexiaReading['severity'];
+  let detail: string;
+  if (t > high) {
+    tier = 'HIGH';
+    severity = 'critical';
+    detail = 'associated in the reported series with diarrhoea, postoperative colic, relaparotomy and laminitis';
+  } else if (t > significant) {
+    tier = 'SIGNIFICANT';
+    severity = 'warning';
+    detail = 'odds ratio 5.06 for postoperative infection (95% CI 2.10–12.20) — cultures indicated';
+  } else if (t > mild) {
+    tier = 'MILD';
+    severity = 'watch';
+    detail = 'associated in the reported series with postoperative colic and relaparotomy';
+  } else {
+    return undefined;
+  }
+
+  const reading = nsaidGivenRecently
+    ? `${t} °C — ${detail}. Thresholds lowered ${PYREXIA.nsaidAdjustmentC}°C: an NSAID was charted within the last 4 hours and can mask fever.`
+    : `${t} °C — ${detail}.`;
+
+  return { temperatureC: t, tier, nsaidAdjusted: nsaidGivenRecently, reading, severity };
+}
+
+/**
+ * Temperature, read on the derivative, same as heart rate and lactate above.
+ * Uses the same 0.3°C NSAID-aware tiers as readPyrexia so a climbing
+ * temperature is judged against the same effective thresholds a snapshot
+ * reading would be.
+ */
+export function readTemperatureTrend(
+  current: number | undefined,
+  previous: number | undefined,
+  nsaidGivenRecently: boolean,
+): HeartRateReading | undefined {
+  if (!Number.isFinite(current)) return undefined;
+  const c = current as number;
+  const pyrexia = readPyrexia(c, nsaidGivenRecently);
+  if (!Number.isFinite(previous)) {
+    return {
+      current: c,
+      reading: `${c} °C. A single value; the direction across serial rounds carries more weight than any one reading.`,
+      severity: pyrexia?.severity ?? 'normal',
+    };
+  }
+  const p = previous as number;
+  const delta = c - p;
+  // 0.2°C absorbs typical thermometer noise without hiding a real trend.
+  const trajectory: Trajectory = delta > 0.2 ? 'RISING' : delta < -0.2 ? 'FALLING' : 'STEADY';
+
+  let severity: HeartRateReading['severity'];
+  let reading: string;
+  if (trajectory === 'RISING') {
+    severity = pyrexia?.severity ?? 'normal';
+    reading = `${p} → ${c} °C, rising by ${delta.toFixed(1)}. A climbing temperature under treatment is the adverse direction whatever the absolute value.`;
+  } else if (trajectory === 'FALLING') {
+    severity = pyrexia ? 'watch' : 'normal';
+    reading = `${p} → ${c} °C, falling by ${Math.abs(delta).toFixed(1)}. A falling temperature is the favourable direction${pyrexia ? ', though the absolute value is still raised' : ''}.`;
+  } else {
+    severity = pyrexia?.severity ?? 'normal';
+    reading = `${p} → ${c} °C, essentially unchanged.${pyrexia ? ' A temperature that will not fall is itself a finding.' : ''}`;
+  }
+  return { current: c, previous: p, delta, trajectory, reading, severity };
+}
+
 /* ------------------------------------------------------------------ */
 /* Endotoxemia — a cage-side read                                       */
 /* ------------------------------------------------------------------ */

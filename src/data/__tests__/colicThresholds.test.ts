@@ -5,11 +5,15 @@ import {
   readPcvTp,
   readReflux,
   readHeartRate,
+  readLactateTrend,
+  readPyrexia,
+  readTemperatureTrend,
   PLASMA_LACTATE_BANDS,
   PERITONEAL_LACTATE,
   PCV_TP,
   REFLUX,
   HEART_RATE,
+  PYREXIA,
   INSENSIBLE_LOSS,
 } from '../colicThresholds';
 
@@ -240,6 +244,88 @@ describe('readHeartRate', () => {
 
   it('returns undefined when nothing was charted', () => {
     expect(readHeartRate(undefined, 52)).toBeUndefined();
+  });
+});
+
+describe('readPyrexia', () => {
+  it('is undefined at and below the mild tier', () => {
+    expect(readPyrexia(PYREXIA.mildAbove, false)).toBeUndefined();
+    expect(readPyrexia(38.0, false)).toBeUndefined();
+  });
+
+  it('crosses into MILD, SIGNIFICANT and HIGH at the published tiers, exclusive of the boundary itself', () => {
+    expect(readPyrexia(PYREXIA.mildAbove + 0.01, false)?.tier).toBe('MILD');
+    expect(readPyrexia(PYREXIA.significantAbove, false)?.tier).toBe('MILD');
+    expect(readPyrexia(PYREXIA.significantAbove + 0.01, false)?.tier).toBe('SIGNIFICANT');
+    expect(readPyrexia(PYREXIA.highAbove, false)?.tier).toBe('SIGNIFICANT');
+    expect(readPyrexia(PYREXIA.highAbove + 0.01, false)?.tier).toBe('HIGH');
+  });
+
+  it('maps tiers to watch / warning / critical, not a flat severity', () => {
+    expect(readPyrexia(PYREXIA.mildAbove + 0.1, false)?.severity).toBe('watch');
+    expect(readPyrexia(PYREXIA.significantAbove + 0.1, false)?.severity).toBe('warning');
+    expect(readPyrexia(PYREXIA.highAbove + 0.1, false)?.severity).toBe('critical');
+  });
+
+  it('shifts every tier down by the NSAID adjustment when an NSAID was given recently', () => {
+    // Without the adjustment, exactly at the mild tier reads as normal (undefined).
+    expect(readPyrexia(PYREXIA.mildAbove, false)).toBeUndefined();
+    // With it, the effective mild threshold is 0.3°C lower, so the same value now crosses it.
+    const withNsaid = readPyrexia(PYREXIA.mildAbove, true);
+    expect(withNsaid?.tier).toBe('MILD');
+    expect(withNsaid?.nsaidAdjusted).toBe(true);
+    expect(withNsaid?.reading).toContain('NSAID');
+  });
+
+  it('returns undefined when nothing was charted', () => {
+    expect(readPyrexia(undefined, false)).toBeUndefined();
+  });
+});
+
+describe('readLactateTrend', () => {
+  it('is RISING only past the 0.2 mmol/L dead-band', () => {
+    expect(readLactateTrend(2.3, 2.1)?.trajectory).toBe('STEADY');
+    expect(readLactateTrend(2.4, 2.1)?.trajectory).toBe('RISING');
+  });
+
+  it('is critical when a rising value crosses the no-survivor ceiling', () => {
+    const r = readLactateTrend(7.5, 7.0);
+    expect(r?.trajectory).toBe('RISING');
+    expect(r?.severity).toBe('critical');
+  });
+
+  it('a single value has no trajectory', () => {
+    expect(readLactateTrend(2.0, undefined)?.trajectory).toBeUndefined();
+  });
+
+  it('returns undefined when nothing was charted', () => {
+    expect(readLactateTrend(undefined, 2.0)).toBeUndefined();
+  });
+});
+
+describe('readTemperatureTrend', () => {
+  it('is RISING only past the 0.2°C dead-band', () => {
+    expect(readTemperatureTrend(38.7, 38.6, false)?.trajectory).toBe('STEADY');
+    expect(readTemperatureTrend(38.9, 38.6, false)?.trajectory).toBe('RISING');
+  });
+
+  it('severity on a rising trend follows the same published tiers as readPyrexia', () => {
+    const r = readTemperatureTrend(PYREXIA.highAbove + 0.1, 39.0, false);
+    expect(r?.trajectory).toBe('RISING');
+    expect(r?.severity).toBe('critical');
+  });
+
+  it('is NSAID-aware, same as readPyrexia', () => {
+    // 39.0°C: below the un-adjusted significant tier (39.2) but above the
+    // NSAID-adjusted one (39.2 - 0.3 = 38.9) — the adjustment changes the tier.
+    const withoutNsaid = readTemperatureTrend(39.0, 38.0, false);
+    const withNsaid = readTemperatureTrend(39.0, 38.0, true);
+    expect(withoutNsaid?.severity).toBe('watch');
+    expect(withNsaid?.severity).toBe('warning');
+  });
+
+  it('a normal, steady temperature has normal severity', () => {
+    expect(readTemperatureTrend(38.0, 38.0, false)?.severity).toBe('normal');
   });
 });
 
