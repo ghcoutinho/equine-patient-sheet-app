@@ -294,6 +294,23 @@ actually went up — a 24-hour, 100 mL/hr line read as 0 mL infused instead of
 ~2,400. Caught live before this shipped; the START event now takes
 `startedAt` directly rather than re-stamping the write time.
 
+### Evolution timeline (Track 4, 2026-08-14)
+
+"Evolução" in the original vision — the record read forward as one merged
+chronological feed instead of one screen at a time. `utils/episodeTimeline.ts`
+merges three sources: rounds charted and edited (scoped to the current
+admission via Track 1's `columnsInCurrentAdmission`), lab panels (unscoped,
+matching `LabPanelView` itself), and every treatment event — not just
+started/given/stopped, which is all `utils/treatments.ts`'s existing
+`treatmentTimeline` surfaces, but every CRI event kind from Track 2's
+`criEvents` log (rate changed, bag changed, paused, resumed) too. A treatment
+stopped before the event log existed still gets a `TREATMENT_STOPPED` event
+from the legacy `stoppedAt`/`stoppedBy` fields — nothing already on a sheet
+drops out of the feed. A dose given under Track 2's early-dose override is
+flagged with its reason shown inline. New tab: **Evolution**, rendering the
+feed grouped by day. `treatmentTimeline` itself is untouched — narrower and
+treatment-only by design, still used by `TreatmentsView`'s own "Given" mode.
+
 ---
 
 ## Stack and commands
@@ -377,6 +394,7 @@ and one tab with three different names.
 | `utils/recorded.ts` | `stampRecorded` — the only place `{at, by}` is constructed |
 | `utils/cri.ts` | `infusedVolumeMl`, `isContinuousLine` — volume from rate × elapsed time, for CRI and FLUID alike |
 | `utils/fluidBalance.ts` | Intake vs. reflux + insensible loss, always a range |
+| `utils/episodeTimeline.ts` | Rounds + labs + treatment events, merged and sorted |
 
 ### Two invariants worth stating
 
@@ -396,7 +414,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 291 tests across 15 files in
+own — `vite.config.ts` is enough). 300 tests across 16 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -455,6 +473,13 @@ class of defect a unit test catches and a reviewer's eye does not):
   admission boundary, insensible loss scaled by weight and elapsed days as
   a range that always widens the balance rather than narrowing it to one
   number.
+- `episodeTimeline.ts` — every source sorts newest-first together; a round
+  and its edit both appear; a round with no `recordedAt` is never placed in
+  time on a guess and a round from before the admission boundary is
+  excluded; an early-override dose is flagged with its reason; every CRI
+  event kind except `START` appears (`START` is already `t.startedAt`); a
+  treatment with no `STOP` event in its log falls back to `stoppedAt`, and
+  one that has a `STOP` event doesn't get double-counted.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
