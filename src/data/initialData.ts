@@ -73,9 +73,31 @@ export const INITIAL_PATIENTS: Patient[] = [
     gender: 'Mare',
     admissionDate: '2026-07-25',
     owner: { name: 'Jane Smith' },
-    criActive: 'Lidocaine Active',
     sirsCriteriaMet: true,
     sirsDescription: 'HR > 60 & RR > 30 detected.',
+    treatments: [
+      {
+        id: 'tx_sample_lidocaine',
+        kind: 'CRI',
+        drug: 'Lidocaine 2%',
+        rateText: '1.3 mg/kg/hr',
+        rateValue: 1.3,
+        rateUnit: 'mg/kg/hr',
+        startedAt: '2026-07-25T14:00:00.000Z',
+        prescribedBy: 'Dr Reyes',
+        administrations: [],
+        criEvents: [
+          {
+            id: 'cri_sample_start',
+            kind: 'START',
+            at: '2026-07-25T14:00:00.000Z',
+            by: 'Dr Reyes',
+            rateValue: 1.3,
+            rateUnit: 'mg/kg/hr',
+          },
+        ],
+      },
+    ],
     flowsheetHistory: [
       {
         time: '13:30',

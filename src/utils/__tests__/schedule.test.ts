@@ -165,6 +165,81 @@ describe('completeTasksForRound', () => {
     expect(doneAt(s, 'tpr')).toBeUndefined();
     expect(doneAt(s, 'labs')).toBeUndefined();
   });
+
+  it('opens an NG-tube reassessment task when the tube is charted in place', () => {
+    const s = completeTasksForRound(
+      withSchedule(),
+      { gi: { nasogastricTube: 'In place' } },
+      NOW,
+    );
+    const task = s.find((t) => t.id === 'ngTube');
+    expect(task?.active).toBe(true);
+    expect(task?.intervalHours).toBe(2);
+    expect(task?.lastDoneAt).toBe(NOW.toISOString());
+  });
+
+  it('resets the NG-tube clock on a later round that still finds it in place', () => {
+    const withTube: Patient = {
+      ...withSchedule(),
+      schedule: [
+        ...withSchedule().schedule!,
+        {
+          id: 'ngTube',
+          kind: 'NG_TUBE',
+          label: 'NG tube reassessment',
+          intervalHours: 2,
+          active: true,
+          lastDoneAt: new Date(NOW.getTime() - HOUR).toISOString(),
+        },
+      ],
+    };
+    const later = new Date(NOW.getTime() + HOUR);
+    const s = completeTasksForRound(withTube, { gi: { nasogastricTube: 'In place' } }, later);
+    expect(doneAt(s, 'ngTube')).toBe(later.toISOString());
+  });
+
+  it('closes the NG-tube task when the tube is charted removed', () => {
+    const withTube: Patient = {
+      ...withSchedule(),
+      schedule: [
+        ...withSchedule().schedule!,
+        {
+          id: 'ngTube',
+          kind: 'NG_TUBE',
+          label: 'NG tube reassessment',
+          intervalHours: 2,
+          active: true,
+          lastDoneAt: NOW.toISOString(),
+        },
+      ],
+    };
+    const s = completeTasksForRound(withTube, { gi: { nasogastricTube: 'Removed' } }, NOW);
+    expect(s.find((t) => t.id === 'ngTube')?.active).toBe(false);
+  });
+
+  it('leaves the NG-tube schedule untouched when the round does not chart the field at all', () => {
+    const withTube: Patient = {
+      ...withSchedule(),
+      schedule: [
+        ...withSchedule().schedule!,
+        {
+          id: 'ngTube',
+          kind: 'NG_TUBE',
+          label: 'NG tube reassessment',
+          intervalHours: 2,
+          active: true,
+          lastDoneAt: new Date(NOW.getTime() - HOUR).toISOString(),
+        },
+      ],
+    };
+    const s = completeTasksForRound(withTube, { vitals: { heartRate: 40 } }, NOW);
+    expect(doneAt(s, 'ngTube')).toBe(new Date(NOW.getTime() - HOUR).toISOString());
+  });
+
+  it('never opens an NG-tube task from a round that never mentions one', () => {
+    const s = completeTasksForRound(withSchedule(), { vitals: { heartRate: 40 } }, NOW);
+    expect(s.find((t) => t.id === 'ngTube')).toBeUndefined();
+  });
 });
 
 describe('defaultSchedule', () => {

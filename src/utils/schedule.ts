@@ -1,4 +1,4 @@
-import type { ScheduledTask, ScheduleTaskKind, Patient } from '../types';
+import type { ScheduledTask, ScheduleTaskKind, Patient, GIData } from '../types';
 
 /**
  * Monitoring schedule and "next due" computation.
@@ -27,6 +27,7 @@ export const TASK_KIND_LABEL: Record<ScheduleTaskKind, string> = {
   PHYSICAL_EXAM: 'Physical exam',
   MEDICATION: 'Medication',
   LAB: 'Lab',
+  NG_TUBE: 'NG tube reassessment',
 };
 
 export const TASK_KIND_ICON: Record<ScheduleTaskKind, string> = {
@@ -34,7 +35,14 @@ export const TASK_KIND_ICON: Record<ScheduleTaskKind, string> = {
   PHYSICAL_EXAM: 'stethoscope',
   MEDICATION: 'syringe',
   LAB: 'science',
+  NG_TUBE: 'timer',
 };
+
+/**
+ * Ward convention, not a published figure — supplied by the attending
+ * clinician (2026-08-14), the same way INSENSIBLE_LOSS was.
+ */
+export const NG_TUBE_REASSESSMENT_HOURS = 2;
 
 /** Sensible starting schedule for a newly admitted patient. */
 export function defaultSchedule(isFoal: boolean): ScheduledTask[] {
@@ -114,13 +122,47 @@ export function markDone(
 }
 
 /**
+ * The NG-tube task exists only while a tube is actually in — charted, not
+ * assumed. "In place" opens it (or resets its clock, if it's already
+ * running); "Not placed"/"Removed" closes it. A round that doesn't touch the
+ * nasogastric-tube field at all leaves the schedule untouched — silence
+ * about the tube this round is not evidence it came out (rule 2).
+ */
+function upsertNgTubeTask(
+  schedule: ScheduledTask[],
+  nasogastricTube: string | undefined,
+  at: Date,
+): ScheduledTask[] {
+  if (nasogastricTube === 'In place') {
+    const existing = schedule.find((t) => t.id === 'ngTube');
+    if (existing) return markDone(schedule, 'ngTube', at);
+    return [
+      ...schedule,
+      {
+        id: 'ngTube',
+        kind: 'NG_TUBE',
+        label: TASK_KIND_LABEL.NG_TUBE,
+        intervalHours: NG_TUBE_REASSESSMENT_HOURS,
+        active: true,
+        lastDoneAt: at.toISOString(),
+      },
+    ];
+  }
+  if (nasogastricTube === 'Not placed' || nasogastricTube === 'Removed') {
+    return schedule.map((t) => (t.id === 'ngTube' ? { ...t, active: false } : t));
+  }
+  return schedule;
+}
+
+/**
  * Saving a round completes the observations it contains: any vitals complete
  * TPR, a full set of structured findings completes the physical exam, and lab
- * values complete the lab task.
+ * values complete the lab task. Charting the nasogastric tube as in place
+ * opens or resets its own reassessment timer.
  */
 export function completeTasksForRound(
   patient: Patient,
-  column: { vitals?: object; labs?: object; gi?: object },
+  column: { vitals?: object; labs?: object; gi?: Partial<GIData> },
   at: Date,
 ): ScheduledTask[] {
   let schedule = patient.schedule ?? [];
@@ -130,6 +172,7 @@ export function completeTasksForRound(
   if (has(column.vitals)) schedule = markDone(schedule, 'tpr', at);
   if (has(column.gi)) schedule = markDone(schedule, 'exam', at);
   if (has(column.labs)) schedule = markDone(schedule, 'labs', at);
+  schedule = upsertNgTubeTask(schedule, column.gi?.nasogastricTube, at);
   return schedule;
 }
 

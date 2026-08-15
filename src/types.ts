@@ -197,7 +197,7 @@ export interface FlowsheetColumn {
 }
 
 /** What kind of task is on the schedule. */
-export type ScheduleTaskKind = 'TPR' | 'PHYSICAL_EXAM' | 'MEDICATION' | 'LAB';
+export type ScheduleTaskKind = 'TPR' | 'PHYSICAL_EXAM' | 'MEDICATION' | 'LAB' | 'NG_TUBE';
 
 /**
  * A recurring item on the patient's monitoring schedule. Intervals are set by
@@ -381,8 +381,6 @@ export interface Patient {
   fssPrematurityDays?: number;
   fssColdExtremities?: boolean;
   fssInfectiousSite?: string;
-  
-  criActive?: string;
 
   /** Sample data shipped with the app, so it can be filtered or purged. */
   isTest?: boolean;

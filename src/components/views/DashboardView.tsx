@@ -1,6 +1,9 @@
 import React from 'react';
 import { Patient, ViewTab } from '../../types';
 import { Sparkline } from '../ui/Sparkline';
+import { wardAlerts, wardAlert, topTrigger } from '../../utils/wardAlerts';
+import { activeInfusions } from '../../utils/treatments';
+import { columnsInCurrentAdmission, latestColumn } from '../../utils/admission';
 
 interface DashboardViewProps {
   patients: Patient[];
@@ -13,8 +16,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectPatient,
   onOpenNewAssessment,
 }) => {
-  const criticalCount = patients.filter(p => p.status === 'CRITICAL').length;
-  const watchCount = patients.filter(p => p.status === 'WATCH').length;
+  // Computed from the same call-surgeon triggers a patient's own Flowsheet
+  // reads — not the static status/statusLabel fields sample data set once,
+  // which never changed no matter what was actually charted afterward.
+  const alerts = wardAlerts(patients);
+  const criticalCount = alerts.filter((a) => a.severity === 'critical').length;
+  const watchCount = alerts.filter((a) => a.severity === 'warning').length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full space-y-6">
@@ -50,9 +57,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Patient Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {patients.map((patient) => {
-          const isCritical = patient.status === 'CRITICAL';
-          const isWatch = patient.status === 'WATCH';
-          const latestObs = patient.flowsheetHistory[patient.flowsheetHistory.length - 1];
+          const alert = wardAlert(patient);
+          const isCritical = alert.severity === 'critical';
+          const isWatch = alert.severity === 'warning';
+          const reason = topTrigger(alert.triggers)?.label;
+          const cardLabel = patient.sirsCriteriaMet
+            ? 'SIRS ALERT'
+            : reason ?? patient.statusLabel ?? 'STABLE';
+          const latestObs = latestColumn(patient);
+          const infusion = activeInfusions(patient.treatments)[0];
 
           return (
             <div
@@ -91,7 +104,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   isWatch ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30' :
                   'bg-[#ECFDF5] text-[#047857]'
                 }`}>
-                  {patient.statusLabel || patient.status}
+                  {cardLabel}
                 </div>
               </div>
 
@@ -125,7 +138,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     referenceMin={28}
                     referenceMax={44}
                     color={isCritical ? '#B91C1C' : '#1D4ED8'}
-                    points={patient.flowsheetHistory.map((c) => ({
+                    points={columnsInCurrentAdmission(patient).map((c) => ({
                       value: c.vitals?.heartRate,
                       label: c.time,
                     }))}
@@ -147,11 +160,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                   <div>
                     <span className="font-label-caps text-[11px] text-[#0E7490] block mb-0.5">
-                      {patient.criActive ? 'CRI Status' : 'Lactate'}
+                      {infusion ? 'CRI Status' : 'Lactate'}
                     </span>
-                    {patient.criActive ? (
+                    {infusion ? (
                       <span className="font-clinical-value text-xs text-[#8B5CF6] border border-[#8B5CF6] px-1.5 py-0.5 rounded inline-block bg-[#8B5CF6]/5">
-                        {patient.criActive}
+                        {infusion.drug} Active
                       </span>
                     ) : (
                       <span className={`font-clinical-value text-sm ${
