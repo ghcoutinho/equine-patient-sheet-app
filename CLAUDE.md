@@ -311,6 +311,33 @@ flagged with its reason shown inline. New tab: **Evolution**, rendering the
 feed grouped by day. `treatmentTimeline` itself is untouched — narrower and
 treatment-only by design, still used by `TreatmentsView`'s own "Given" mode.
 
+### Deterioration alerts and NG-tube timer (Track 5, 2026-08-14)
+
+Track 6 (backend/multi-user sync) stays deferred, per the earlier decision
+recorded in the Storage note above — this pass covered Track 5 only.
+
+**Ward-wide deterioration alerts.** `DashboardView`'s CRITICAL/WATCH coloring
+and card labels used to read `patient.status`/`statusLabel` — fields set once
+in sample data and never recomputed by anything, the same class of defect
+rule 1 exists to prevent. A patient's card stayed the same colour forever
+regardless of what was charted afterward. `utils/wardAlerts.ts` now computes
+real severity per patient from `callSurgeonTriggers.ts`'s existing trigger
+engine (the HR-rising trigger among them), scoped to the current admission
+boundary, and the dashboard derives its counts, coloring and card label from
+that. Found and fixed the same way: `patient.criActive` was equally static;
+the "CRI Status" chip now reads `activeInfusions` (Track 2) — a real CRI
+treatment was added to the sample data (Star Gazer) so the demo still shows
+a running line, computed rather than fabricated. Both dead fields are
+removed from `Patient` now that nothing reads them.
+
+**NG-tube reassessment timer.** `schedule.ts` gains an `NG_TUBE` task kind.
+Charting `nasogastricTube` as "In place" opens the task or resets its clock;
+"Not placed"/"Removed" closes it; a round that doesn't touch the field
+leaves the schedule untouched — silence about the tube is not evidence it
+came out (rule 2). The 2-hour interval (`NG_TUBE_REASSESSMENT_HOURS`) is a
+clinician-supplied ward convention, the same way `INSENSIBLE_LOSS` was, not
+a published figure.
+
 ---
 
 ## Stack and commands
@@ -395,6 +422,7 @@ and one tab with three different names.
 | `utils/cri.ts` | `infusedVolumeMl`, `isContinuousLine` — volume from rate × elapsed time, for CRI and FLUID alike |
 | `utils/fluidBalance.ts` | Intake vs. reflux + insensible loss, always a range |
 | `utils/episodeTimeline.ts` | Rounds + labs + treatment events, merged and sorted |
+| `utils/wardAlerts.ts` | Per-patient severity from the trigger engine, ward-wide |
 
 ### Two invariants worth stating
 
@@ -414,7 +442,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 300 tests across 16 files in
+own — `vite.config.ts` is enough). 315 tests across 17 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -480,6 +508,16 @@ class of defect a unit test catches and a reviewer's eye does not):
   event kind except `START` appears (`START` is already `t.startedAt`); a
   treatment with no `STOP` event in its log falls back to `stoppedAt`, and
   one that has a `STOP` event doesn't get double-counted.
+- `wardAlerts.ts` — `sirsCriteriaMet` alone forces critical severity even
+  with no trigger firing; a boundary-scoped patient never reads a stale
+  round from a previous admission; `wardAlerts` excludes an
+  `AWAITING_ARRIVAL`, `DISCHARGED` or `ARCHIVED` patient but includes a
+  legacy patient with no `lifecycle` field at all; `topTrigger` prefers
+  critical over warning.
+- `schedule.ts` — the NG-tube task opens on "In place", resets its clock on
+  a later round that still finds it in place, closes on "Removed", and is
+  untouched by a round that never charts the field at all; a round with
+  nothing charted never opens the task from nothing.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
