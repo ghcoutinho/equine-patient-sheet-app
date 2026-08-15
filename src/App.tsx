@@ -21,6 +21,7 @@ import { PatientManagementView } from './components/views/PatientManagementView'
 import { TreatmentsView } from './components/views/TreatmentsView';
 import { LabPanelView } from './components/views/LabPanelView';
 import { FluidBalanceView } from './components/views/FluidBalanceView';
+import { EvolutionView } from './components/views/EvolutionView';
 
 export function App() {
   const [patients, setPatients, saveFailed] = usePersistentPatients(INITIAL_PATIENTS);
@@ -176,6 +177,8 @@ export function App() {
           )}
 
           {currentTab === 'fluids' && <FluidBalanceView patient={activePatient} />}
+
+          {currentTab === 'evolution' && <EvolutionView patient={activePatient} />}
 
           {currentTab === 'ranges' && (
             <ReferenceRangesView patient={activePatient} />

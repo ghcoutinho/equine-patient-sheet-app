@@ -63,7 +63,8 @@ export type ViewTab =
   | 'meds'
   | 'labs'
   | 'sources'
-  | 'fluids';
+  | 'fluids'
+  | 'evolution';
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 

@@ -98,6 +98,14 @@ export const NAV_ITEMS: NavItem[] = [
     hint: 'Intake from running lines, output from reflux and insensible loss',
   },
   {
+    id: 'evolution',
+    label: 'Evolution',
+    shortLabel: 'Evolution',
+    icon: 'timeline',
+    group: 'decision',
+    hint: 'Every round, lab and treatment event this admission, merged and in order',
+  },
+  {
     id: 'calculator',
     label: 'Dose Calculator',
     shortLabel: 'Doses',
