@@ -338,6 +338,47 @@ came out (rule 2). The 2-hour interval (`NG_TUBE_REASSESSMENT_HOURS`) is a
 clinician-supplied ward convention, the same way `INSENSIBLE_LOSS` was, not
 a published figure.
 
+### Literature review plan, Sprint 1 (2026-08-15)
+
+The app now has a second, code-verified evidence base alongside the clinical
+sources above: `E:\Claude\Clinical app\plano_revisao_app_vs_literatura.md`
+cross-checks 15 recommendations from a five-source literature synthesis
+against the actual source, item by item, and sequences the confirmed gaps
+into sprints. This entry covers Sprint 1 — the three lowest-risk items, each
+extending an existing pattern rather than requiring new architecture.
+
+**Three published fever tiers, not one line (A2).** The old pyrexia trigger
+was a single 38.5°C cut-off. `readPyrexia` (`data/colicThresholds.ts`)
+replaces it with three tiers from Loomes et al. 2025 (Equine Vet J
+57:827-861) — mild (>38.6°C), significant (>39.2°C, OR 5.06 for postop
+infection, 95% CI 2.10-12.20), high (>39.4°C, additionally associated with
+diarrhoea and laminitis) — mapped to watch/warning/critical rather than one
+flat severity. NSAID adjustment (−0.3°C on every tier, generalising a single
+adjusted pair Bauck 2023 states) is *derived*, not a new manual field:
+`utils/nsaid.ts` matches `Treatment.drug` against known NSAID names and
+checks actual `Administration` timestamps for a dose within the last 4
+hours — never a toggle a clinician could forget to set.
+
+This widened `ClinicalTrigger.severity` from two levels to three
+(`'watch' | 'warning' | 'critical'`, reusing the `AssessmentSeverity` scale
+already used elsewhere rather than inventing a new one) — updated at all
+four call sites (`FlowsheetView`, `RoundEntryView`, `LiveIntelligenceView`,
+`wardAlerts.ts`) and their trigger-rendering UI.
+
+**Trend generalised beyond heart rate (A3 extension).**
+`readLactateTrend`/`readTemperatureTrend` follow the same
+derivative-over-snapshot pattern `readHeartRate` established. Temperature
+trend reads through the same NSAID-aware tiers `readPyrexia` uses.
+
+**NG-tube removal suggestion (A4 extension).** Fires only when the tube is
+charted "In place" on both the current and previous round *and* reflux was
+below the significance threshold both times — two consecutive checks, never
+one, and never suggests removing a tube the round didn't chart as present.
+
+Remaining sprints (structural complication taxonomy, blood gas module,
+validated pain score, Salmonella surveillance, etc.) are sequenced in the
+companion plan document; not started as of this entry.
+
 ---
 
 ## Stack and commands
@@ -423,6 +464,7 @@ and one tab with three different names.
 | `utils/fluidBalance.ts` | Intake vs. reflux + insensible loss, always a range |
 | `utils/episodeTimeline.ts` | Rounds + labs + treatment events, merged and sorted |
 | `utils/wardAlerts.ts` | Per-patient severity from the trigger engine, ward-wide |
+| `utils/nsaid.ts` | `nsaidGivenWithin` — derives recent-NSAID from charted administrations |
 
 ### Two invariants worth stating
 
@@ -442,7 +484,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 315 tests across 17 files in
+own — `vite.config.ts` is enough). 347 tests across 19 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
