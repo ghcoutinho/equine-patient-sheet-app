@@ -1,5 +1,10 @@
 import type { Treatment, CriEvent } from '../types';
 
+/** CRI (drug infusion) and FLUID (crystalloid line) are mechanically the same continuous-line shape — rate × elapsed time, start/rate-change/bag-change/pause/stop. */
+export function isContinuousLine(treatment: Treatment): boolean {
+  return treatment.kind === 'CRI' || treatment.kind === 'FLUID';
+}
+
 /**
  * Infused volume for a continuous line, derived from rate × elapsed time —
  * never typed, never asked of the clinician (Architecture principle D).
@@ -28,15 +33,19 @@ function toMlPerHour(rateValue: number, rateUnit: string, weightKg: number): num
  * START/RESUME/RATE_CHANGE — or falls back to a single constant-rate segment
  * from `startedAt` to `stoppedAt` (or `now`) when there is no log yet.
  *
- * Returns undefined when nothing can be computed without guessing: not a CRI,
- * no rate at all, or a rate in a unit this can't convert to volume.
+ * Returns undefined when nothing can be computed without guessing: not a
+ * continuous line, no rate at all, or a rate in a unit this can't convert to
+ * volume. Applies to both CRI (a drug infusion) and FLUID (a crystalloid
+ * line) — mechanically identical, both rate × elapsed time, and fluid
+ * balance (utils/fluidBalance.ts) needs the FLUID case as much as the CRI
+ * one.
  */
 export function infusedVolumeMl(
   treatment: Treatment,
   now: Date,
   weightKg: number,
 ): number | undefined {
-  if (treatment.kind !== 'CRI') return undefined;
+  if (!isContinuousLine(treatment)) return undefined;
 
   const events = treatment.criEvents;
   if (events && events.length > 0) {

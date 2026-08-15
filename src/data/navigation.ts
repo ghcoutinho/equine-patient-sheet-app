@@ -90,6 +90,14 @@ export const NAV_ITEMS: NavItem[] = [
     hint: 'Neonatal sepsis, foal survival and adult GI sepsis scoring inputs',
   },
   {
+    id: 'fluids',
+    label: 'Fluid Balance',
+    shortLabel: 'Fluids',
+    icon: 'water_full',
+    group: 'decision',
+    hint: 'Intake from running lines, output from reflux and insensible loss',
+  },
+  {
     id: 'calculator',
     label: 'Dose Calculator',
     shortLabel: 'Doses',

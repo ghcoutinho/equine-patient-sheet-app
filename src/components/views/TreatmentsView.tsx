@@ -18,7 +18,7 @@ import type { CriEvent } from '../../types';
 import { DoseEntryPanel } from './DoseEntryPanel';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { stampRecorded } from '../../utils/recorded';
-import { infusedVolumeMl, currentRate, isPaused, newCriEventId } from '../../utils/cri';
+import { infusedVolumeMl, currentRate, isPaused, isContinuousLine, newCriEventId } from '../../utils/cri';
 
 interface TreatmentsViewProps {
   patient: Patient;
@@ -150,7 +150,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
               stoppedBy: stopped.by,
               stopReason: reason?.trim() || undefined,
               criEvents:
-                x.kind === 'CRI'
+                isContinuousLine(x)
                   ? [
                       ...(x.criEvents ?? []),
                       { id: newCriEventId(), kind: 'STOP' as const, ...stopped, note: reason?.trim() || undefined },
@@ -598,9 +598,9 @@ const TreatmentRow: React.FC<RowProps> = ({
   // Mirrors TreatmentsView's isEarlyDose — recomputed here rather than passed
   // down, since this row already has the status that decision reads.
   const early = status.state === 'RUNNING' && status.lastGivenAt !== undefined;
-  const paused = t.kind === 'CRI' && isPaused(t);
-  const infused = t.kind === 'CRI' ? infusedVolumeMl(t, now, weightKg) : undefined;
-  const rate = t.kind === 'CRI' ? currentRate(t) : undefined;
+  const paused = isContinuousLine(t) && isPaused(t);
+  const infused = isContinuousLine(t) ? infusedVolumeMl(t, now, weightKg) : undefined;
+  const rate = isContinuousLine(t) ? currentRate(t) : undefined;
 
   return (
     <div
@@ -648,7 +648,7 @@ const TreatmentRow: React.FC<RowProps> = ({
                 : t.intervalHours
                   ? `q${t.intervalHours}h`
                   : 'single dose',
-              t.kind === 'CRI' && infused !== undefined ? `${Math.round(infused)} mL infused` : undefined,
+              isContinuousLine(t) && infused !== undefined ? `${Math.round(infused)} mL infused` : undefined,
               `started ${clockTime(t.startedAt)} ${dayLabel(t.startedAt, now)}`,
             ]
               .filter(Boolean)
@@ -680,7 +680,7 @@ const TreatmentRow: React.FC<RowProps> = ({
               <span className="hidden sm:inline">{early ? 'Given early?' : 'Given'}</span>
             </button>
           )}
-          {t.kind === 'CRI' && status.state !== 'STOPPED' && !paused && (
+          {isContinuousLine(t) && status.state !== 'STOPPED' && !paused && (
             <>
               <button
                 onClick={onChangeCriRate}
@@ -708,7 +708,7 @@ const TreatmentRow: React.FC<RowProps> = ({
               </button>
             </>
           )}
-          {t.kind === 'CRI' && paused && (
+          {isContinuousLine(t) && paused && (
             <button
               onClick={onResumeCri}
               disabled={disabled}
@@ -774,7 +774,7 @@ const TreatmentRow: React.FC<RowProps> = ({
                 </dd>
               </div>
             )}
-            {t.kind === 'CRI' && infused !== undefined && (
+            {isContinuousLine(t) && infused !== undefined && (
               <div>
                 <dt className="font-label-caps text-[10px] text-[#747686] uppercase">
                   Infused so far
@@ -835,7 +835,7 @@ const TreatmentRow: React.FC<RowProps> = ({
             )}
           </div>
 
-          {t.kind === 'CRI' && (
+          {isContinuousLine(t) && (
             <div>
               <h4 className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-1">
                 Line history ({t.criEvents?.length ?? 0})

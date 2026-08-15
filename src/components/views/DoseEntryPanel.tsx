@@ -10,7 +10,6 @@ import {
 } from '../../utils/doseCalculation';
 import { ROUTES, RATE_UNITS, normaliseRoute, intervalFromFrequency, newId } from '../../utils/treatments';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
-import { stampRecorded } from '../../utils/recorded';
 import { newCriEventId } from '../../utils/cri';
 import type { CriEvent } from '../../types';
 
@@ -200,18 +199,27 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
   const hasClinician = !!clinician?.trim();
 
   /**
-   * A CRI's opening event, so its history starts at creation rather than the
+   * A continuous line's opening event (CRI or FLUID — mechanically the same,
+   * see utils/cri.ts), so its history starts at creation rather than the
    * event log only picking up whenever someone first logs a rate change. No
    * event without a real volume-based rate to log — a mass-based rate can't
-   * seed a START any more than it can compute a volume (see utils/cri.ts).
+   * seed a START any more than it can compute a volume.
+   *
+   * The event's `at` is the treatment's own `startedAt` — the clinical time
+   * the clinician chose, often backdated to when the line was actually
+   * started — not the moment this form was submitted. infusedVolumeMl
+   * integrates from event timestamps, so stamping "now" here would silently
+   * shrink every backdated line's segment to whatever time has passed since
+   * the write, not since the line actually went up.
    */
   const startCriEvents = (
     kind: TreatmentKind,
     rateValue: number | undefined,
     rateUnit: string | undefined,
+    startedAtIso: string,
   ): CriEvent[] | undefined =>
-    kind === 'CRI' && rateValue !== undefined && rateUnit
-      ? [{ id: newCriEventId(), kind: 'START', ...stampRecorded(clinician!), rateValue, rateUnit }]
+    (kind === 'CRI' || kind === 'FLUID') && rateValue !== undefined && rateUnit
+      ? [{ id: newCriEventId(), kind: 'START', at: startedAtIso, by: clinician!, rateValue, rateUnit }]
       : undefined;
 
   const addFromFormulary = () => {
@@ -235,7 +243,7 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
       // rateText holds.
       rateValue,
       rateUnit,
-      criEvents: startCriEvents(kind, rateValue, rateUnit),
+      criEvents: startCriEvents(kind, rateValue, rateUnit, new Date(startedAt).toISOString()),
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field
@@ -275,7 +283,12 @@ export const DoseEntryPanel: React.FC<DoseEntryPanelProps> = ({
           : `${manualRateValue.trim()} ${manualRateUnit}`,
       rateValue: manualRateValueNum,
       rateUnit: manualRateUnitVal,
-      criEvents: startCriEvents(manualKind, manualRateValueNum, manualRateUnitVal),
+      criEvents: startCriEvents(
+        manualKind,
+        manualRateValueNum,
+        manualRateUnitVal,
+        new Date(startedAt).toISOString(),
+      ),
       startedAt: new Date(startedAt).toISOString(),
       // startedAt is the clinical start time the clinician chose, not the
       // write time — there's no separate "when was this order entered" field
