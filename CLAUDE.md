@@ -260,6 +260,40 @@ for a paused line, and `Stop` now also appends a `STOP` event for a CRI
 alongside the `stoppedAt`/`stoppedBy`/`stopReason` fields it already wrote.
 This closes out Track 2.
 
+### Fluid balance (Track 3, 2026-08-14)
+
+Wires in `INSENSIBLE_LOSS` (recorded in `colicThresholds.ts` since 2026-08-04,
+unused until now) as the last piece of a new panel: intake from Track 2's
+structured rates, output from charted reflux plus insensible loss.
+
+`utils/fluidBalance.ts` computes it. Intake sums every continuous line's
+`infusedVolumeMl` plus plain-volume bolus administrations matched against
+`"<number> mL"` specifically — a rate-shaped amount like `"2.08 mL/hr"` is
+already counted through the line's own event log, not double-counted here. A
+line with a rate that can't convert to volume (mass-based) is excluded from
+intake but reported why in `excludedIntake` rather than silently dropped
+(rule 9). Output sums reflux across every round in the current admission
+(`columnsInCurrentAdmission`, Track 1's boundary) plus insensible loss scaled
+by weight and elapsed time. Output and balance are always ranges, never a
+midpoint — insensible loss can't be measured at the bedside, so collapsing it
+to one number would misrepresent how much of the balance is charted versus
+estimated (rule 1). New tab: **Fluid Balance**, next to Intelligence and
+Scores.
+
+Extending `isContinuousLine` (Track 2's CRI machinery) to FLUID-kind
+treatments, not just CRI, turned out to be a prerequisite: a plain
+crystalloid maintenance line is mechanically identical to a drug CRI, and
+intake needs both.
+
+Fixed along the way: `DoseEntryPanel`'s seeded `START` event stamped
+`stampRecorded(clinician)` — write time — instead of the treatment's own
+`startedAt`. Backdating a line's start (normal when logging a line that was
+actually hung an hour ago) desynced the event log from the treatment, so
+`infusedVolumeMl` integrated from "now" instead of from when the line
+actually went up — a 24-hour, 100 mL/hr line read as 0 mL infused instead of
+~2,400. Caught live before this shipped; the START event now takes
+`startedAt` directly rather than re-stamping the write time.
+
 ---
 
 ## Stack and commands
@@ -341,7 +375,8 @@ and one tab with three different names.
 | `data/patientIdentity.ts` | Age from date of birth, sex, which mark to draw |
 | `utils/admission.ts` | Current-admission boundary — see below |
 | `utils/recorded.ts` | `stampRecorded` — the only place `{at, by}` is constructed |
-| `utils/cri.ts` | `infusedVolumeMl` — CRI volume from rate × elapsed time |
+| `utils/cri.ts` | `infusedVolumeMl`, `isContinuousLine` — volume from rate × elapsed time, for CRI and FLUID alike |
+| `utils/fluidBalance.ts` | Intake vs. reflux + insensible loss, always a range |
 
 ### Two invariants worth stating
 
@@ -361,7 +396,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 282 tests across 14 files in
+own — `vite.config.ts` is enough). 291 tests across 15 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):
@@ -413,6 +448,13 @@ class of defect a unit test catches and a reviewer's eye does not):
   is no event log; `currentRate` prefers the log over the treatment's own
   rate; `isPaused` is true only when the most recent event is an unmatched
   `PAUSE`.
+- `fluidBalance.ts` — continuous-line intake via `infusedVolumeMl`, a
+  mass-based rate excluded but reported in `excludedIntake`, a plain-mL
+  bolus counted but a rate-shaped `amountText` is not (already counted
+  through the line), reflux summed only from rounds inside the current
+  admission boundary, insensible loss scaled by weight and elapsed days as
+  a range that always widens the balance rather than narrowing it to one
+  number.
 
 **Not covered — deliberately out of scope for this pass, not forgotten:**
 `callSurgeonTriggers.ts`, `prognosis.ts`, `gutSounds.ts`, `manure.ts`,
