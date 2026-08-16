@@ -16,6 +16,7 @@ import { useEnterAdvance } from '../../utils/formNavigation';
 import { clockTime, dayLabel, newId } from '../../utils/treatments';
 import { patientAge } from '../../data/patientIdentity';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
+import { SalmonellaPanel } from './SalmonellaPanel';
 
 interface LabPanelViewProps {
   patient: Patient;
@@ -193,6 +194,10 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
             </button>
           )}
         </div>
+
+        {!editing && (
+          <SalmonellaPanel patient={patient} clinician={clinician} onUpdatePatient={onUpdatePatient} />
+        )}
 
         {/* Panel picker */}
         {panels.length > 0 && !editing && (

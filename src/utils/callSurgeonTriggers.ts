@@ -16,6 +16,7 @@ import {
   readTemperatureTrend,
   readPeritonealCytology,
 } from '../data/colicThresholds';
+import { evaluateSalmonellaIsolation } from '../data/salmonella';
 
 /**
  * "Call the surgeon" escalation engine.
@@ -407,6 +408,33 @@ export function evaluateCallSurgeonTriggers(
       label: 'Laminitis',
       evidence: `Obel grade ${column.laminitis?.obelGrade}/4`,
       rule: '≥ grade 2',
+      severity: 'warning',
+    });
+  }
+
+  // Post-anaesthetic ocular exam — needs treatment, not a surgical call
+  if (severityOf('ocularExam', column.support?.ocularExam) === 'critical') {
+    out.push({
+      id: 'ocular',
+      label: 'Corneal abrasion',
+      evidence: column.support?.ocularExam as string,
+      rule: 'Reported in 17.6% of horses after general anaesthesia (Loomes et al. 2025)',
+      severity: 'warning',
+    });
+  }
+
+  // Salmonella isolation — infection control, not a surgical call
+  const salmonellaIsolation = evaluateSalmonellaIsolation(
+    has(column.vitals.temperatureC) ? column.vitals.temperatureC : undefined,
+    column.gi.manure ? column.gi.manure.consistency === 'Watery diarrhoea' : undefined,
+    has(column.labs.wbc) ? column.labs.wbc : undefined,
+  );
+  if (salmonellaIsolation?.meetsCriteria) {
+    out.push({
+      id: 'salmonella-isolation',
+      label: 'Isolation suggested',
+      evidence: salmonellaIsolation.reading,
+      rule: 'Fever + diarrhoea + WBC < 5,000/µL (Bauck 2023)',
       severity: 'warning',
     });
   }

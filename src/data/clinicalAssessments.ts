@@ -111,6 +111,215 @@ export const PAIN_BEHAVIOUR: AssessmentDefinition = {
   ],
 };
 
+/**
+ * Composite Pain Scale (CPS) — the 9 purely behavioural sub-items of
+ * Bussières et al. 2008's 13-parameter scale, exactly as applied to visceral
+ * colic pain in van Loon et al. 2014 (Table 2). The scale's other 4
+ * sub-items (heart rate, respiratory rate, digestive sounds, temperature)
+ * are physiological and are derived from vitals/GI fields already charted
+ * elsewhere — see `cpsPanel` in `utils/intelligence.ts` — not entered again
+ * here. Each option's severity (normal/watch/warning/critical) doubles as
+ * its 0–3 CPS point value; `cpsPanel` reads it back via `severityOf`.
+ */
+export const CPS_APPEARANCE: AssessmentDefinition = {
+  id: 'cpsAppearance',
+  label: 'CPS — Appearance',
+  family: 'pain',
+  prompt: 'Reluctance to move, restlessness, agitation and anxiety',
+  columns: 1,
+  options: [
+    { value: 'Bright and alert, lowered head and ears, no reluctance to move', severity: 'normal' },
+    { value: 'Bright, occasional head movements, no reluctance to move', severity: 'watch' },
+    {
+      value:
+        'Restlessness, pricked up ears, abnormal facial expressions (teeth grinding, yawning, grimace face), dilated pupils',
+      severity: 'warning',
+    },
+    { value: 'Excited, continuous body movements, abnormal facial expression', severity: 'critical' },
+  ],
+};
+
+export const CPS_SWEATING: AssessmentDefinition = {
+  id: 'cpsSweating',
+  label: 'CPS — Sweating',
+  family: 'pain',
+  prompt: 'Sweating',
+  columns: 1,
+  options: [
+    { value: 'No obvious signs of sweat', severity: 'normal' },
+    { value: 'Damp to the touch', severity: 'watch' },
+    { value: 'Wet to the touch, beads of sweat apparent over the body', severity: 'warning' },
+    { value: 'Excessive sweating, beads running off the animal', severity: 'critical' },
+  ],
+};
+
+export const CPS_KICKING_ABDOMEN: AssessmentDefinition = {
+  id: 'cpsKickingAbdomen',
+  label: 'CPS — Kicking at abdomen',
+  family: 'pain',
+  prompt: 'Kicking at abdomen',
+  columns: 1,
+  options: [
+    { value: 'Quietly standing, no kicking', severity: 'normal' },
+    { value: 'Occasional kicking at abdomen (1–2 times/5 min)', severity: 'watch' },
+    { value: 'Frequent kicking at abdomen (3–4 times/5 min)', severity: 'warning' },
+    {
+      value: 'Excessive kicking at abdomen (>5 times/5 min), intermittent attempts to lie down and roll',
+      severity: 'critical',
+    },
+  ],
+};
+
+export const CPS_PAWING: AssessmentDefinition = {
+  id: 'cpsPawing',
+  label: 'CPS — Pawing on the floor',
+  family: 'pain',
+  prompt: 'Pawing on the floor',
+  columns: 1,
+  options: [
+    { value: 'Quietly standing, no pawing', severity: 'normal' },
+    { value: 'Occasional pawing (1–2 times/5 min)', severity: 'watch' },
+    { value: 'Frequent pawing (3–4 times/5 min)', severity: 'warning' },
+    { value: 'Excessive pawing (>5 times/5 min)', severity: 'critical' },
+  ],
+};
+
+export const CPS_POSTURE: AssessmentDefinition = {
+  id: 'cpsPosture',
+  label: 'CPS — Posture',
+  family: 'pain',
+  prompt: 'Weight distribution, comfort',
+  columns: 1,
+  options: [
+    { value: 'Stands quietly, normal walk', severity: 'normal' },
+    { value: 'Occasional weight shift, slight muscle tremors', severity: 'watch' },
+    { value: 'Non-weight bearing, abnormal weight distribution', severity: 'warning' },
+    { value: 'Stretching out, prostration, muscle tremors', severity: 'critical' },
+  ],
+};
+
+export const CPS_HEAD_MOVEMENT: AssessmentDefinition = {
+  id: 'cpsHeadMovement',
+  label: 'CPS — Head movement',
+  family: 'pain',
+  prompt: 'Head movement',
+  columns: 1,
+  options: [
+    { value: 'No evidence of discomfort, head straight ahead for the most part', severity: 'normal' },
+    {
+      value:
+        'Intermittent head movements laterally/vertically, looking at flanks (1–2/5 min), lip curling (1–2/5 min)',
+      severity: 'watch',
+    },
+    {
+      value:
+        'Intermittent and rapid head movements, frequent looking at flank (3–4/5 min), lip curling (3–4/5 min)',
+      severity: 'warning',
+    },
+    {
+      value:
+        'Continuous head movements, excessively looking at flank (>5/5 min), lip curling (>5/5 min)',
+      severity: 'critical',
+    },
+  ],
+};
+
+export const CPS_APPETITE: AssessmentDefinition = {
+  id: 'cpsAppetite',
+  label: 'CPS — Appetite',
+  family: 'pain',
+  prompt: 'Appetite',
+  columns: 1,
+  options: [
+    { value: 'Eats hay readily or is not allowed to eat hay', severity: 'normal' },
+    { value: 'Hesitates to eat hay', severity: 'watch' },
+    {
+      value:
+        'Shows little interest in hay, eats very little, or takes hay in mouth but does not chew or swallow',
+      severity: 'warning',
+    },
+    { value: 'Neither shows interest in nor eats hay', severity: 'critical' },
+  ],
+};
+
+export const CPS_INTERACTIVE_BEHAVIOUR: AssessmentDefinition = {
+  id: 'cpsInteractiveBehaviour',
+  label: 'CPS — Interactive behaviour',
+  family: 'pain',
+  prompt: 'Response to observer',
+  columns: 1,
+  options: [
+    { value: 'Pays attention to people', severity: 'normal' },
+    { value: 'Exaggerated response to auditory stimulus (observer calling the horse)', severity: 'watch' },
+    {
+      value: 'Excessive-to-aggressive response to auditory stimulus (biting, turning hindquarters to kick)',
+      severity: 'warning',
+    },
+    { value: 'Stupor, prostration, no response to auditory stimulus', severity: 'critical' },
+  ],
+};
+
+export const CPS_RESPONSE_TO_PALPATION: AssessmentDefinition = {
+  id: 'cpsResponseToPalpation',
+  label: 'CPS — Response to palpation',
+  family: 'pain',
+  prompt: 'Response to palpation of the painful area (abdominal incision)',
+  columns: 1,
+  options: [
+    { value: 'No reaction to palpation', severity: 'normal' },
+    { value: 'Mild reaction to palpation', severity: 'watch' },
+    { value: 'Resistance to palpation', severity: 'warning' },
+    { value: 'Violent reaction to palpation', severity: 'critical' },
+  ],
+};
+
+export const CPS_DEFINITIONS: AssessmentDefinition[] = [
+  CPS_APPEARANCE,
+  CPS_SWEATING,
+  CPS_KICKING_ABDOMEN,
+  CPS_PAWING,
+  CPS_POSTURE,
+  CPS_HEAD_MOVEMENT,
+  CPS_APPETITE,
+  CPS_INTERACTIVE_BEHAVIOUR,
+  CPS_RESPONSE_TO_PALPATION,
+];
+
+/**
+ * Equine Acute Abdominal Pain Scale (EAAPS) — Maskato et al. 2020, Table 1.
+ * A single pick: the horse's highest-scoring behaviour category wins ("if
+ * two or more behaviours are demonstrated, the score is assigned based on
+ * the behaviour with the highest value"), which is exactly what a
+ * single-select already does. Severity here is a rough display banding, not
+ * the scale's own validated cut-offs — those (2.5 discriminant, 3.5 surgical
+ * treatment, 4.5 mortality) are read out explicitly in ColicReadouts.
+ */
+export const EAAPS: AssessmentDefinition = {
+  id: 'eaapsBehaviour',
+  label: 'EAAPS',
+  family: 'pain',
+  prompt: 'Select the horse’s highest-scoring pain behaviour',
+  columns: 1,
+  options: [
+    { value: 'No overt pain behaviours', severity: 'normal' },
+    { value: 'Flank watching, or Flehmen / lip curling', severity: 'watch' },
+    { value: 'Sternal recumbency stretching, or restlessness', severity: 'watch' },
+    { value: 'Kicking at abdomen, or pawing', severity: 'warning' },
+    { value: 'Attempting to lie down or crouching, or lateral recumbency', severity: 'warning' },
+    { value: 'Rolling', severity: 'critical' },
+  ],
+};
+
+/** The EAAPS's own 0–5 integer score for each option — Table 1's score column. */
+export const EAAPS_SCORE: Record<string, number> = {
+  'No overt pain behaviours': 0,
+  'Flank watching, or Flehmen / lip curling': 1,
+  'Sternal recumbency stretching, or restlessness': 2,
+  'Kicking at abdomen, or pawing': 3,
+  'Attempting to lie down or crouching, or lateral recumbency': 4,
+  Rolling: 5,
+};
+
 export const ANALGESIA: AssessmentDefinition = {
   id: 'analgesia',
   label: 'Analgesia given',
@@ -303,6 +512,29 @@ export const INCISION_STATUS: AssessmentDefinition = {
 };
 
 /**
+ * Post-anaesthetic fluorescein ocular exam. Corneal abrasion is reported in
+ * 17.6% of horses after general anaesthesia (Loomes et al. 2025) and is
+ * clinically under-diagnosed because it needs fluorescein to detect — no
+ * odds ratio by duration of anaesthesia is reported, so this stays a simple
+ * pass/fail finding rather than feeding the OR-tier complication model.
+ */
+export const OCULAR_EXAM: AssessmentDefinition = {
+  id: 'ocularExam',
+  label: 'Post-anaesthetic ocular exam (fluorescein)',
+  family: 'support',
+  prompt: 'Fluorescein-stain ocular exam finding',
+  columns: 2,
+  options: [
+    { value: 'Normal — no staining', severity: 'normal' },
+    {
+      value: 'Corneal abrasion present',
+      severity: 'critical',
+      hint: 'Reported in 17.6% of horses after general anaesthesia (Loomes et al. 2025)',
+    },
+  ],
+};
+
+/**
  * Extremity temperature, a Foal Survival Score item (Brewer & Koterba). Warm
  * is favourable — this is why `entry.coldExtremities` scores 1 point when
  * `false` in foalSurvivalPanel.
@@ -380,6 +612,8 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
   MUCOUS_MEMBRANES,
   MENTATION,
   PAIN_BEHAVIOUR,
+  ...CPS_DEFINITIONS,
+  EAAPS,
   ANALGESIA,
   RECTAL_EXAM,
   FLASH_ULTRASOUND,
@@ -393,6 +627,7 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
   CRYOTHERAPY,
   IV_CATHETER_SITE,
   INCISION_STATUS,
+  OCULAR_EXAM,
   COLD_EXTREMITIES,
   HYPOTONIA,
   PETECHIAE,

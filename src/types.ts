@@ -118,6 +118,18 @@ export interface Complication extends Recorded {
   resolvedBy?: string;
 }
 
+/**
+ * One Salmonella surveillance sample. Bauck 2023's protocol: collect on
+ * every colic admission (not just clinically suspected cases), resampled
+ * routinely and more frequently once a patient is isolated — see
+ * `data/salmonella.ts`.
+ */
+export interface SalmonellaTest extends Recorded {
+  id: string;
+  method: 'Culture' | 'PCR';
+  result: 'Pending' | 'Negative' | 'Positive';
+}
+
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
 /**
@@ -186,6 +198,17 @@ export interface PainData {
   score?: number;
   behaviour?: string;
   analgesia?: string;
+  /**
+   * Composite Pain Scale (Bussières et al. 2008; van Loon et al. 2014) — the
+   * 9 behavioural sub-items, keyed by category id, valued with the exact
+   * selected criteria text. The scale's other 4 sub-items (heart rate,
+   * respiratory rate, digestive sounds, temperature) are physiological and
+   * are derived from already-charted vitals/GI fields rather than entered
+   * again here — see `cpsPanel` in `utils/intelligence.ts`.
+   */
+  cps?: Record<string, string>;
+  /** Equine Acute Abdominal Pain Scale (Maskato et al. 2020) — single highest-behaviour pick. */
+  eaapsBehaviour?: string;
 }
 
 export interface LaminitisData {
@@ -198,6 +221,14 @@ export interface LaminitisData {
 export interface SupportData {
   ivCatheterSite?: string;
   incisionStatus?: string;
+  /**
+   * Post-anaesthetic fluorescein ocular exam — corneal abrasion is reported
+   * in 17.6% of horses after general anaesthesia and is clinically
+   * under-diagnosed because it needs fluorescein to detect (Loomes et al.
+   * 2025). Undefined means not yet performed, same as every other optional
+   * round field.
+   */
+  ocularExam?: string;
 }
 
 export interface LabsData {
@@ -259,7 +290,7 @@ export interface FlowsheetColumn {
 }
 
 /** What kind of task is on the schedule. */
-export type ScheduleTaskKind = 'TPR' | 'PHYSICAL_EXAM' | 'MEDICATION' | 'LAB' | 'NG_TUBE';
+export type ScheduleTaskKind = 'TPR' | 'PHYSICAL_EXAM' | 'MEDICATION' | 'LAB' | 'NG_TUBE' | 'SALMONELLA';
 
 /**
  * A recurring item on the patient's monitoring schedule. Intervals are set by
@@ -475,6 +506,15 @@ export interface Patient {
   labPanels?: LabPanel[];
   /** Complications charted this stay, open and resolved. See `Complication`. */
   complications?: Complication[];
+  /** Salmonella surveillance samples, admission onward. See `SalmonellaTest`. */
+  salmonellaTests?: SalmonellaTest[];
+  /**
+   * Clinician-confirmed isolation status — the automated isolation-criteria
+   * flag (fever + diarrhoea + leukopenia) only ever suggests isolation; a
+   * clinician has to actually set this before the resample interval
+   * tightens. See `data/salmonella.ts`.
+   */
+  salmonellaIsolation?: boolean;
   /**
    * Date of birth, ISO `YYYY-MM-DD`. When present the age class is computed
    * from it rather than typed, so it stays correct as the patient ages —
@@ -650,4 +690,19 @@ export interface FlowsheetEntry {
   postOpReflux?: boolean;
   abdominalUltrasound?: 'NORMAL' | 'ABNORMAL';
   rectalExam?: 'NORMAL' | 'ABNORMAL';
+
+  // Composite Pain Scale (Bussières et al. 2008; van Loon et al. 2014) —
+  // 9 behavioural sub-scores, 0-3 each, mapped in columnToEntry from the
+  // selected criteria text via severityOf (normal/watch/warning/critical ->
+  // 0/1/2/3). The scale's other 4 sub-items are physiological and reuse
+  // heartRate/respiratoryRate/temperature/gutSounds above — see cpsPanel.
+  cpsAppearance?: number;
+  cpsSweating?: number;
+  cpsKickingAbdomen?: number;
+  cpsPawing?: number;
+  cpsPosture?: number;
+  cpsHeadMovement?: number;
+  cpsAppetite?: number;
+  cpsInteractiveBehaviour?: number;
+  cpsResponseToPalpation?: number;
 }

@@ -17,7 +17,9 @@ import {
   ENDOTOXEMIA,
   TOXIC_MEMBRANE_VALUES,
   BLAND_TAP_CAVEAT,
+  EAAPS_CUTOFFS,
 } from '../../data/colicThresholds';
+import { EAAPS_SCORE } from '../../data/clinicalAssessments';
 
 /**
  * Colic readouts: the published thresholds applied to the charted round.
@@ -89,6 +91,8 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
   const wbc = num(latest.labs?.wbc);
   const hr = latest.vitals?.heartRate;
   const reflux = latest.gi?.refluxVolumeL;
+  const eaapsValue = latest.pain?.eaapsBehaviour;
+  const eaapsScore = eaapsValue ? EAAPS_SCORE[eaapsValue] : undefined;
 
   const band = plasmaLactateBand(plasma);
   const peritonealCmp = comparePeritonealLactate(peritoneal, plasma);
@@ -132,6 +136,7 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
     !pcvTp &&
     !refluxReading &&
     !hrReading &&
+    eaapsScore === undefined &&
     endotoxSigns.length === 0;
 
   if (nothingCharted) return null;
@@ -160,6 +165,33 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
             source={HEART_RATE.source}
           >
             {hrReading.reading}
+          </Readout>
+        )}
+
+        {/* EAAPS — three published cut-offs, each its own construct */}
+        {eaapsScore !== undefined && (
+          <Readout
+            title="EAAPS"
+            value={`${eaapsScore}/5`}
+            severity={
+              eaapsScore > EAAPS_CUTOFFS.mortalityAbove
+                ? 'critical'
+                : eaapsScore > EAAPS_CUTOFFS.surgicalTreatmentAbove
+                  ? 'warning'
+                  : eaapsScore > EAAPS_CUTOFFS.severePainAbove
+                    ? 'watch'
+                    : 'normal'
+            }
+            source={EAAPS_CUTOFFS.source}
+          >
+            {eaapsValue}.{' '}
+            {eaapsScore > EAAPS_CUTOFFS.mortalityAbove
+              ? `Above ${EAAPS_CUTOFFS.mortalityAbove}, the cut-off associated with mortality (likelihood ratio 5.5) — though the VAS was reported as the stronger predictor for this specific outcome.`
+              : eaapsScore > EAAPS_CUTOFFS.surgicalTreatmentAbove
+                ? `Above ${EAAPS_CUTOFFS.surgicalTreatmentAbove}, the cut-off associated with surgical treatment (likelihood ratio 3.3).`
+                : eaapsScore > EAAPS_CUTOFFS.severePainAbove
+                  ? `Above ${EAAPS_CUTOFFS.severePainAbove}, the cut-off discriminating severe from mild pain (likelihood ratio 6.4).`
+                  : `At or below ${EAAPS_CUTOFFS.severePainAbove} — does not cross any of the three published cut-offs.`}
           </Readout>
         )}
 

@@ -1,4 +1,5 @@
 import type { ScheduledTask, ScheduleTaskKind, Patient, GIData } from '../types';
+import { SALMONELLA_SURVEILLANCE } from '../data/salmonella';
 
 /**
  * Monitoring schedule and "next due" computation.
@@ -28,6 +29,7 @@ export const TASK_KIND_LABEL: Record<ScheduleTaskKind, string> = {
   MEDICATION: 'Medication',
   LAB: 'Lab',
   NG_TUBE: 'NG tube reassessment',
+  SALMONELLA: 'Salmonella resample',
 };
 
 export const TASK_KIND_ICON: Record<ScheduleTaskKind, string> = {
@@ -36,6 +38,7 @@ export const TASK_KIND_ICON: Record<ScheduleTaskKind, string> = {
   MEDICATION: 'syringe',
   LAB: 'science',
   NG_TUBE: 'timer',
+  SALMONELLA: 'coronavirus',
 };
 
 /**
@@ -56,7 +59,39 @@ export function defaultSchedule(isFoal: boolean): ScheduledTask[] {
       active: true,
     },
     { id: 'labs', kind: 'LAB', label: 'Lactate / PCV / TP', intervalHours: 12, active: true },
+    // Bauck 2023: collected on every colic admission, not just clinically
+    // suspected ones — never `lastDoneAt`, so it's due immediately until the
+    // first sample is logged.
+    {
+      id: 'salmonella',
+      kind: 'SALMONELLA',
+      label: TASK_KIND_LABEL.SALMONELLA,
+      intervalHours: SALMONELLA_SURVEILLANCE.routineIntervalHours,
+      active: true,
+    },
   ];
+}
+
+/**
+ * Setting or clearing isolation status retunes the resample interval
+ * immediately (72h routine / 12h isolated) rather than waiting for the next
+ * sample to be logged — the point of isolation is to sample *more often*
+ * starting now, not from whenever the next result happens to land.
+ */
+export function setSalmonellaIsolation(
+  schedule: ScheduledTask[] | undefined,
+  isolation: boolean,
+): ScheduledTask[] {
+  return (schedule ?? []).map((t) =>
+    t.id === 'salmonella'
+      ? {
+          ...t,
+          intervalHours: isolation
+            ? SALMONELLA_SURVEILLANCE.isolationIntervalHours
+            : SALMONELLA_SURVEILLANCE.routineIntervalHours,
+        }
+      : t,
+  );
 }
 
 const MIN = 60_000;

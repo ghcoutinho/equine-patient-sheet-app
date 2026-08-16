@@ -461,6 +461,82 @@ triggers firing correctly from a charted round; SAA of 500 µg/mL rendering
 as green "NORMAL POSTOP" (not the red sepsis-risk styling) once a surgery
 time within the last 20h was set on the patient record.
 
+### Literature review plan, Sprint 4 (2026-08-15)
+
+**B1 — Composite Pain Scale and EAAPS, from the actual papers, not a
+synthesis summary.** The review plan's B1 gap named van Loon 2014 and
+Maskato 2020 but neither source document reproduced those papers' specific
+behavioural sub-items — implementing them from the synthesis alone would
+have meant inventing clinical criteria with someone else's citation on
+them, which rule 3 exists to prevent. B1 was deferred rather than
+guessed at; the user then supplied both PDFs directly, which unblocked it
+properly.
+
+`data/clinicalAssessments.ts` gains 9 `CPS_*` definitions, one per
+behavioural sub-item of Bussières et al. 2008's Composite Pain Scale
+(Table 2), transcribed verbatim as applied to visceral colic pain in van
+Loon et al. 2014 — reluctance to move, sweating, kicking at abdomen,
+pawing, posture, head movement, appetite, interactive behaviour, response
+to palpation. Each option's severity tag (normal/watch/warning/critical)
+doubles as its 0–3 CPS point value, a direct fit since `AssessmentSeverity`
+already has exactly 4 tiers — `cpsPoints()` in `utils/intelligence.ts`
+reads it back via `severityOf` rather than storing the number twice. The
+scale's other 4 sub-items (heart rate, respiratory rate, digestive sounds,
+temperature) are physiological and are derived from vitals/gut-sounds
+already charted elsewhere, exactly Table 2's published bands — never
+re-entered. `cpsPanel()` sums all 13 to a 0–39 total, following the same
+`ScorePanel`/`Criterion` shape as `sirsPanel`/`casPanel`/`giSeverityPanel`.
+Unlike CAS, van Loon 2014 publishes no single validated cut-off — only that
+non-survivors' scores were significantly higher throughout the
+post-operative period (median AUC ≈10 vs ≈4, P < 0.001) — so the panel's
+severity banding is explicitly labelled a ward convention referencing that
+range, not the source study's own threshold.
+
+EAAPS (Maskato et al. 2020, Table 1) is a single "highest behaviour wins"
+pick, which is exactly what a single-select already does — one new
+`AssessmentDefinition` (`EAAPS`) plus an `EAAPS_SCORE` lookup for its 0–5
+integer score. Unlike CPS, Maskato 2020 does publish three specific
+cut-offs, each validated against a different construct (severe pain > 2.5,
+surgical treatment > 3.5, mortality > 4.5) — `EAAPS_CUTOFFS`
+(`data/colicThresholds.ts`) and a new `Readout` in `ColicReadouts.tsx`
+present all three individually, the same "don't sum what wasn't validated
+as a sum" treatment as the existing Bottegaro/McGovern admission cut-offs.
+
+**B3 — Salmonella surveillance (Bauck 2023).** New `data/salmonella.ts`:
+`evaluateSalmonellaIsolation()` requires all three published criteria
+together (fever > 102°F/38.9°C, diarrhoea, WBC < 5,000/µL) — a partial
+match is reported honestly ("meets 2 of 3") rather than as a false
+positive or a silent miss. `SalmonellaTest` (method, result, `Recorded`)
+and `Patient.salmonellaIsolation` are new; a `SALMONELLA` schedule-task
+kind is seeded at admission (due immediately, 72h routine interval,
+matching "collect on every case, not just suspected ones") and
+`setSalmonellaIsolation()` retunes it to 12h the moment a clinician
+confirms isolation, not from whenever the next sample happens to land. The
+isolation criteria only ever *suggest* — nothing in this module sets
+`salmonellaIsolation` automatically. New `SalmonellaPanel.tsx`, embedded in
+the Laboratory tab: sample log, isolation toggle, and the automated
+isolation-criteria read. A matching `callSurgeonTriggers.ts` entry
+(`salmonella-isolation`) surfaces the same suggestion as a warning-severity
+trigger when a round happens to chart all three inputs at once.
+
+**B6 — Post-anaesthetic ocular exam (Loomes et al. 2025).** One new
+structured pick, `OCULAR_EXAM` — corneal *abrasion*, not ulceration (the
+precise finding the source reports), present in 17.6% of horses after
+general anaesthesia and clinically under-diagnosed without fluorescein. No
+odds ratio by anaesthesia duration is published, so this stays a simple
+pass/fail finding rather than being folded into the OR-tier complication
+model from Sprint 2.
+
+22 new tests (373→395, 20→21 files). Live-verified: all 9 CPS
+picks and the EAAPS pick render with the exact published criteria text;
+selecting the top tier on 3 CPS items shows "CRITICAL" and the panel
+computes a 14–35/39 range from what's charted, citing van Loon 2014;
+EAAPS "Rolling" reads 5/5 and cites the mortality cut-off (>4.5, LR+ 5.5);
+a charted corneal abrasion fires the `ocular` trigger with the 17.6%
+citation; the Salmonella panel's isolation toggle and sample log both
+persist, and the isolation-criteria readout correctly reports "2 of 3" for
+a partial match.
+
 ---
 
 ## Stack and commands
@@ -548,6 +624,8 @@ and one tab with three different names.
 | `utils/wardAlerts.ts` | Per-patient severity from the trigger engine, ward-wide |
 | `utils/nsaid.ts` | `nsaidGivenWithin` — derives recent-NSAID from charted administrations |
 | `data/complications.ts` | Standardised complication definitions + `orTierFor` OR-weighted severity |
+| `data/salmonella.ts` | Isolation-criteria evaluation + surveillance interval constants |
+| `data/clinicalAssessments.ts`'s `CPS_*`/`EAAPS` | Composite Pain Scale (van Loon 2014) and EAAPS (Maskato 2020) definitions |
 
 ### Two invariants worth stating
 
@@ -567,7 +645,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 373 tests across 20 files in
+own — `vite.config.ts` is enough). 395 tests across 21 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

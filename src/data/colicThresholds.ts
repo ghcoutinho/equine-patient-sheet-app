@@ -653,3 +653,23 @@ export const SAA_POSTOP = {
   source:
     'Bowlby et al. 2021, cited in Bauck 2023 — serum amyloid A up to 568 µg/mL is reported in healthy horses in the first 48h after coeliotomy and intestinal decompression, without GI disease.',
 } as const;
+
+/* ------------------------------------------------------------------ */
+/* Equine Acute Abdominal Pain Scale (EAAPS)                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Maskato et al. 2020's three published cut-offs, each validated against a
+ * different construct — presented individually, the same way the "Admission
+ * risk cut-offs" section already reads Bottegaro/McGovern, rather than
+ * summed into one banding the source study never proposed.
+ */
+export const EAAPS_CUTOFFS = {
+  /** Discriminates severe vs. mild pain (median VAS split). LR+ 6.4. */
+  severePainAbove: 2.5,
+  /** Predicts surgical treatment. LR+ 3.3. */
+  surgicalTreatmentAbove: 3.5,
+  /** Predicts mortality. LR+ 5.5 — weaker than the VAS at this one task. */
+  mortalityAbove: 4.5,
+  source: 'Maskato et al. 2020 (Animals 10:2242), Table 4',
+} as const;

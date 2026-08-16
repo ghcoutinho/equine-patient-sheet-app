@@ -147,6 +147,42 @@ describe('peritoneal cytology triggers', () => {
   });
 });
 
+describe('ocular exam trigger', () => {
+  it('fires warning when a corneal abrasion is charted', () => {
+    const t = evaluateCallSurgeonTriggers(column({ support: { ocularExam: 'Corneal abrasion present' } }));
+    expect(t.find((x) => x.id === 'ocular')?.severity).toBe('warning');
+  });
+
+  it('does not fire on a normal exam', () => {
+    const t = evaluateCallSurgeonTriggers(column({ support: { ocularExam: 'Normal — no staining' } }));
+    expect(t.find((x) => x.id === 'ocular')).toBeUndefined();
+  });
+});
+
+describe('Salmonella isolation trigger', () => {
+  it('fires warning when fever, diarrhoea and leukopenia are all charted', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({
+        vitals: { temperatureC: 39.5 },
+        gi: { manure: { passed: true, amount: 'Moderate', consistency: 'Watery diarrhoea' } },
+        labs: { wbc: 4.0 },
+      }),
+    );
+    expect(t.find((x) => x.id === 'salmonella-isolation')?.severity).toBe('warning');
+  });
+
+  it('does not fire with only two of the three criteria', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({
+        vitals: { temperatureC: 39.5 },
+        gi: { manure: { passed: true, amount: 'Moderate', consistency: 'Watery diarrhoea' } },
+        labs: { wbc: 6.0 },
+      }),
+    );
+    expect(t.find((x) => x.id === 'salmonella-isolation')).toBeUndefined();
+  });
+});
+
 describe('temperature-rising trigger', () => {
   it('fires when temperature climbs past the dead-band into a tier', () => {
     const prev = column({ vitals: { temperatureC: 38.0 } });

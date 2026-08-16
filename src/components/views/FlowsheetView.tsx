@@ -930,6 +930,13 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       (c) => c.support?.incisionStatus,
                       'incisionStatus',
                     )}
+                    {structuredRow(
+                      'ocular',
+                      'Ocular exam (fluorescein)',
+                      '#0E7490',
+                      (c) => c.support?.ocularExam,
+                      'ocularExam',
+                    )}
                   </>
                 )}
               </tbody>

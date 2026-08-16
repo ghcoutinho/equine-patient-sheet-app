@@ -43,6 +43,9 @@ import {
   MUCOUS_MEMBRANES,
   NASOGASTRIC_TUBE,
   PAIN_BEHAVIOUR,
+  CPS_DEFINITIONS,
+  EAAPS,
+  OCULAR_EXAM,
   PERITONEAL_FLUID,
   PERITONEAL_ODOR,
   PERITONEAL_BACTERIA,
@@ -135,6 +138,11 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [painScore, setPainScore] = useState<string>('');
   const [painBehaviour, setPainBehaviour] = useState<string | undefined>();
   const [analgesia, setAnalgesia] = useState<string | undefined>();
+  // Composite Pain Scale — 9 behavioural sub-items, keyed by definition id.
+  const [cps, setCps] = useState<Record<string, string | undefined>>({});
+  const setCpsField = (id: string, value: string | undefined) =>
+    setCps((prev) => ({ ...prev, [id]: value }));
+  const [eaapsBehaviour, setEaapsBehaviour] = useState<string | undefined>();
 
   // GI
   const [reflux, setReflux] = useState<string>('');
@@ -169,6 +177,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   // Support
   const [ivCatheterSite, setIvCatheterSite] = useState<string | undefined>();
   const [incisionStatus, setIncisionStatus] = useState<string | undefined>();
+  const [ocularExam, setOcularExam] = useState<string | undefined>();
 
   // Neonatal exam — Brewer & Koterba sepsis-score and Foal Survival Score
   // items that live outside GI/pain/laminitis.
@@ -233,10 +242,16 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       responseToTherapy,
     };
 
+    const cpsEntries = Object.fromEntries(
+      Object.entries(cps).filter((entry): entry is [string, string] => entry[1] !== undefined),
+    );
+
     const pain: PainData = {
       score: toNumber(painScore),
       behaviour: painBehaviour,
       analgesia,
+      cps: Object.keys(cpsEntries).length > 0 ? cpsEntries : undefined,
+      eaapsBehaviour,
     };
 
     const laminitis: LaminitisData = {
@@ -245,7 +260,7 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       cryotherapy,
     };
 
-    const support: SupportData = { ivCatheterSite, incisionStatus };
+    const support: SupportData = { ivCatheterSite, incisionStatus, ocularExam };
 
     const neonatal: NeonatalExamData = {
       coldExtremities:
@@ -630,6 +645,28 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             onChange={setAnalgesia}
             previous={latest?.pain?.analgesia}
           />
+          <OptionGrid
+            definition={EAAPS}
+            value={eaapsBehaviour}
+            onChange={setEaapsBehaviour}
+            previous={latest?.pain?.eaapsBehaviour}
+          />
+          <div className="border border-[#E2E8F0] rounded-lg p-3 bg-[#f8f9ff]">
+            <p className="font-label-caps text-[10px] tracking-widest text-[#747686] uppercase mb-2">
+              Composite Pain Scale (CPS) — 9 behavioural sub-items
+            </p>
+            <div className="space-y-3">
+              {CPS_DEFINITIONS.map((def) => (
+                <OptionGrid
+                  key={def.id}
+                  definition={def}
+                  value={cps[def.id]}
+                  onChange={(v) => setCpsField(def.id, v)}
+                  previous={latest?.pain?.cps?.[def.id]}
+                />
+              ))}
+            </div>
+          </div>
         </>,
       )}
 
@@ -827,6 +864,12 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             value={incisionStatus}
             onChange={setIncisionStatus}
             previous={latest?.support?.incisionStatus}
+          />
+          <OptionGrid
+            definition={OCULAR_EXAM}
+            value={ocularExam}
+            onChange={setOcularExam}
+            previous={latest?.support?.ocularExam}
           />
         </>,
       )}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { FlowsheetColumn, FlowsheetEntry, Patient } from '../../types';
-import { columnToEntry, casPanel, sirsPanel, foalSurvivalPanel } from '../intelligence';
+import { columnToEntry, casPanel, sirsPanel, foalSurvivalPanel, cpsPanel } from '../intelligence';
 
 /**
  * The bridge from a charted round to the scoring engines.
@@ -425,5 +425,70 @@ describe('foalSurvivalPanel — round-driven', () => {
     expect(p.criteria.find((c) => c.id === 'extremities')?.points).toBeUndefined();
     expect(p.criteria.find((c) => c.id === 'sites')?.points).toBeUndefined();
     expect(p.note).not.toContain('legacy record');
+  });
+});
+
+describe('columnToEntry — CPS behavioural sub-scores', () => {
+  it('maps the selected criteria text to its 0-3 point value via severity', () => {
+    const e = columnToEntry(
+      patient({ isFoal: false }),
+      column({
+        pain: {
+          cps: {
+            cpsAppearance: 'Excited, continuous body movements, abnormal facial expression',
+          },
+        },
+      }),
+    );
+    expect(e.cpsAppearance).toBe(3);
+  });
+
+  it('is undefined for an item that was not picked', () => {
+    const e = columnToEntry(patient({ isFoal: false }), column({ pain: {} }));
+    expect(e.cpsSweating).toBeUndefined();
+  });
+});
+
+describe('cpsPanel', () => {
+  it('sums behavioural and physiological sub-scores to a total out of 39', () => {
+    const entry: Partial<FlowsheetEntry> = {
+      cpsAppearance: 3,
+      cpsSweating: 3,
+      cpsKickingAbdomen: 3,
+      cpsPawing: 3,
+      cpsPosture: 3,
+      cpsHeadMovement: 3,
+      cpsAppetite: 3,
+      cpsInteractiveBehaviour: 3,
+      cpsResponseToPalpation: 3,
+      heartRate: 70,
+      respiratoryRate: 20,
+      gutSounds: 'HYPERMOTILE',
+      temperature: 40.5,
+    };
+    const p = cpsPanel(entry);
+    expect(p.score.isExact).toBe(true);
+    expect(p.score.min).toBe(39);
+    expect(p.severity).toBe('critical');
+  });
+
+  it('reads heart rate, respiratory rate, gut sounds and temperature bands exactly as published', () => {
+    const p = cpsPanel({ heartRate: 44, respiratoryRate: 13, gutSounds: 'NORMAL', temperature: 38.0 });
+    expect(p.criteria.find((c) => c.id === 'hr')?.points).toBe(0);
+    expect(p.criteria.find((c) => c.id === 'rr')?.points).toBe(0);
+    expect(p.criteria.find((c) => c.id === 'gutSounds')?.points).toBe(0);
+    expect(p.criteria.find((c) => c.id === 'temp')?.points).toBe(0);
+  });
+
+  it('is a range, not a point, when sub-items are missing', () => {
+    const p = cpsPanel({ heartRate: 70 });
+    expect(p.score.isExact).toBe(false);
+    expect(p.note).toContain('Range reflects');
+  });
+
+  it('states plainly that no single cut-off is published, rather than inventing one', () => {
+    const p = cpsPanel({});
+    expect(p.interpretation).toContain('No single validated cut-off');
+    expect(p.sourceRefId).toBe('van-loon-2014');
   });
 });

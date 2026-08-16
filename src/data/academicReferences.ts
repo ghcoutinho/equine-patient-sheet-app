@@ -139,6 +139,18 @@ export const ACADEMIC_REFERENCES: AcademicReference[] = [
       'NGAL sepsis (455 µg/L) and non-survival (1,104 µg/L) cut-offs — biomarkerEvaluator.ts',
   },
   {
+    id: 'van-loon-2014',
+    kind: 'journal',
+    authors: 'van Loon JPAM, Jonckheer-Sheehy VSM, Back W, van Weeren PR, Hellebrekers LJ',
+    year: 2014,
+    title:
+      'Monitoring equine visceral pain with a composite pain scale score and correlation with survival after emergency gastrointestinal surgery',
+    journal: 'Vet J',
+    volumeInfo: '200:109-115',
+    usedFor:
+      'Composite Pain Scale (CPS), 13-parameter scale originally developed by Bussières et al. 2008 (Res Vet Sci 85:294-306) for orthopaedic pain — cpsPanel in utils/intelligence.ts',
+  },
+  {
     id: 'scalco-2023',
     kind: 'journal',
     // Corrected 2026-08-03: the entry this replaced (id "dembek-2023") listed

@@ -43,6 +43,20 @@ const numeric = (v: number | 'Pending' | undefined): number | undefined =>
   typeof v === 'number' && Number.isFinite(v) ? v : undefined;
 
 /**
+ * CPS point value (0-3) of a selected behaviour, via the same severity tag
+ * the option is styled with — normal/watch/warning/critical maps onto the
+ * scale's own 0/1/2/3, so the two never need to be kept in sync separately.
+ */
+const CPS_SEVERITY_POINTS: Record<AssessmentSeverity, number> = {
+  normal: 0,
+  watch: 1,
+  warning: 2,
+  critical: 3,
+};
+const cpsPoints = (definitionId: string, value: string | undefined): number | undefined =>
+  value === undefined ? undefined : CPS_SEVERITY_POINTS[severityOf(definitionId, value)];
+
+/**
  * A parameter from the most recently collected full lab panel.
  *
  * Some scoring inputs are not part of the quick round. Total calcium is the
@@ -209,6 +223,22 @@ export function columnToEntry(
     // is never the round's ionised calcium (mmol/L) — feeding ionised mmol/L
     // into a total-calcium mg/dL threshold would score every patient abnormal.
     ...panelSourced,
+
+    cpsAppearance: cpsPoints('cpsAppearance', column.pain?.cps?.cpsAppearance),
+    cpsSweating: cpsPoints('cpsSweating', column.pain?.cps?.cpsSweating),
+    cpsKickingAbdomen: cpsPoints('cpsKickingAbdomen', column.pain?.cps?.cpsKickingAbdomen),
+    cpsPawing: cpsPoints('cpsPawing', column.pain?.cps?.cpsPawing),
+    cpsPosture: cpsPoints('cpsPosture', column.pain?.cps?.cpsPosture),
+    cpsHeadMovement: cpsPoints('cpsHeadMovement', column.pain?.cps?.cpsHeadMovement),
+    cpsAppetite: cpsPoints('cpsAppetite', column.pain?.cps?.cpsAppetite),
+    cpsInteractiveBehaviour: cpsPoints(
+      'cpsInteractiveBehaviour',
+      column.pain?.cps?.cpsInteractiveBehaviour,
+    ),
+    cpsResponseToPalpation: cpsPoints(
+      'cpsResponseToPalpation',
+      column.pain?.cps?.cpsResponseToPalpation,
+    ),
   };
 }
 
@@ -566,6 +596,201 @@ export function casPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
 }
 
 /**
+ * Composite Pain Scale (CPS) — Bussières et al. 2008's 13-parameter scale,
+ * applied to visceral colic pain and correlated with survival in van Loon
+ * et al. 2014. Total 0–39: 9 behavioural sub-items entered directly (see
+ * `data/clinicalAssessments.ts`'s CPS_* definitions), plus 4 physiological
+ * sub-items derived here from vitals/gut sounds already charted elsewhere —
+ * never re-entered, per the same "don't ask twice" principle as the other
+ * panels in this file.
+ *
+ * van Loon 2014 publishes no single validated cut-off (unlike CAS's 7) —
+ * only that non-survivors' scores were significantly higher throughout the
+ * post-operative period (median AUC ~10 vs ~4 in survivors, P < 0.001). The
+ * severity banding below is therefore explicitly a ward convention
+ * referencing that reported non-survivor range, not part of the source
+ * study itself — same treatment as `giSeverityPanel`.
+ *
+ * The respiratory-rate top tier is printed in the source table as "18
+ * breaths pm" with no comparator, immediately below "17–18" — every other
+ * row in the table uses a `>` top tier, so this is read as ">18", not as an
+ * exact-18 duplicate of the row above it.
+ */
+export function cpsPanel(entry: Partial<FlowsheetEntry>): ScorePanel {
+  // ScorePanelCard's chip row treats a criterion as "charted" only when it
+  // has both points and evidence — the CPS behavioural items only ever
+  // produce a point value, so the point itself (out of 3) doubles as the
+  // evidence shown, same as showing "110 bpm" for heart rate below.
+  const behaviourEvidence = (points: number | undefined): string | undefined =>
+    points === undefined ? undefined : `${points}/3`;
+
+  const criteria: Criterion[] = [
+    {
+      id: 'cpsAppearance',
+      label: 'Appearance',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsAppearance),
+      points: entry.cpsAppearance,
+    },
+    {
+      id: 'cpsSweating',
+      label: 'Sweating',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsSweating),
+      points: entry.cpsSweating,
+    },
+    {
+      id: 'cpsKickingAbdomen',
+      label: 'Kicking at abdomen',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsKickingAbdomen),
+      points: entry.cpsKickingAbdomen,
+    },
+    {
+      id: 'cpsPawing',
+      label: 'Pawing on the floor',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsPawing),
+      points: entry.cpsPawing,
+    },
+    {
+      id: 'cpsPosture',
+      label: 'Posture',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsPosture),
+      points: entry.cpsPosture,
+    },
+    {
+      id: 'cpsHeadMovement',
+      label: 'Head movement',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsHeadMovement),
+      points: entry.cpsHeadMovement,
+    },
+    {
+      id: 'cpsAppetite',
+      label: 'Appetite',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsAppetite),
+      points: entry.cpsAppetite,
+    },
+    {
+      id: 'cpsInteractiveBehaviour',
+      label: 'Interactive behaviour',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsInteractiveBehaviour),
+      points: entry.cpsInteractiveBehaviour,
+    },
+    {
+      id: 'cpsResponseToPalpation',
+      label: 'Response to palpation',
+      maxPoints: 3,
+      rule: 'Bussières et al. 2008, Table 2',
+      evidence: behaviourEvidence(entry.cpsResponseToPalpation),
+      points: entry.cpsResponseToPalpation,
+    },
+    {
+      id: 'hr',
+      label: 'Heart rate',
+      maxPoints: 3,
+      rule: '24–44 = 0 · 45–52 = 1 · 53–60 = 2 · > 60 = 3',
+      evidence: fmt(entry.heartRate, 'bpm'),
+      points:
+        entry.heartRate === undefined
+          ? undefined
+          : entry.heartRate > 60
+            ? 3
+            : entry.heartRate >= 53
+              ? 2
+              : entry.heartRate >= 45
+                ? 1
+                : 0,
+    },
+    {
+      id: 'rr',
+      label: 'Respiratory rate',
+      maxPoints: 3,
+      rule: '8–13 = 0 · 14–16 = 1 · 17–18 = 2 · > 18 = 3',
+      evidence: fmt(entry.respiratoryRate, 'brpm'),
+      points:
+        entry.respiratoryRate === undefined
+          ? undefined
+          : entry.respiratoryRate > 18
+            ? 3
+            : entry.respiratoryRate >= 17
+              ? 2
+              : entry.respiratoryRate >= 14
+                ? 1
+                : 0,
+    },
+    {
+      id: 'gutSounds',
+      label: 'Digestive sounds',
+      maxPoints: 3,
+      rule: 'Normal = 0 · decreased = 1 · absent = 2 · hypermotile = 3',
+      evidence: entry.gutSounds,
+      points:
+        entry.gutSounds === undefined
+          ? undefined
+          : entry.gutSounds === 'NORMAL'
+            ? 0
+            : entry.gutSounds === 'HYPOMOTILE'
+              ? 1
+              : entry.gutSounds === 'ABSENT'
+                ? 2
+                : 3,
+    },
+    {
+      id: 'temp',
+      label: 'Rectal temperature',
+      maxPoints: 3,
+      rule: '36.9–38.5°C = 0 · 36.4–36.9 or 38.5–39.0 = 1 · 35.9–36.4 or 39.0–39.5 = 2 · beyond = 3',
+      evidence: fmt(entry.temperature, '°C'),
+      points:
+        entry.temperature === undefined
+          ? undefined
+          : entry.temperature >= 36.9 && entry.temperature <= 38.5
+            ? 0
+            : (entry.temperature >= 36.4 && entry.temperature < 36.9) ||
+                (entry.temperature > 38.5 && entry.temperature <= 39.0)
+              ? 1
+              : (entry.temperature >= 35.9 && entry.temperature < 36.4) ||
+                  (entry.temperature > 39.0 && entry.temperature <= 39.5)
+                ? 2
+                : 3,
+    },
+  ];
+
+  const score = boundsOf(criteria);
+  // Ward-convention banding referencing the reported non-survivor range —
+  // see the doc comment above. Not the source study's own cut-off.
+  const wardCritical = score.min >= 17;
+  const wardNormal = score.max <= 3;
+
+  return {
+    id: 'cps',
+    title: 'Composite Pain Scale (CPS)',
+    source: 'van Loon et al. 2014 (Vet J 200:109-115), scale by Bussières et al. 2008',
+    sourceRefId: 'van-loon-2014',
+    score,
+    criteria,
+    severity: wardCritical ? 'critical' : wardNormal ? 'normal' : 'warning',
+    interpretation: `CPS ${score.min === score.max ? score.min : `${score.min}–${score.max}`}/39. No single validated cut-off is published; non-survivors' scores were significantly higher throughout the post-operative period in the original series (median area-under-curve ≈10 vs ≈4 in survivors, P < 0.001).`,
+    note: score.isExact
+      ? undefined
+      : 'Range reflects sub-items that have not been charted this round.',
+  };
+}
+
+/**
  * Foal survival, Brewer & Koterba's seven-item screen as implemented here.
  * Each item is one point for the favourable finding; the published score is
  * 0–7, so a value is only meaningful once most items are charted.
@@ -766,7 +991,7 @@ export function buildPanels(
 ): ScorePanel[] {
   return patient.isFoal
     ? [neonatalSirsPanel(entry), foalSurvivalPanel(patient, entry), neonatalSepsisPanel(patient, entry)]
-    : [sirsPanel(entry), giSeverityPanel(entry), casPanel(entry)];
+    : [sirsPanel(entry), giSeverityPanel(entry), casPanel(entry), cpsPanel(entry)];
 }
 
 /** True when at least one input for this panel was actually charted. */

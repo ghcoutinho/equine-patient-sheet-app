@@ -6,6 +6,7 @@ import {
   markDone,
   completeTasksForRound,
   defaultSchedule,
+  setSalmonellaIsolation,
 } from '../schedule';
 
 /**
@@ -256,5 +257,36 @@ describe('defaultSchedule', () => {
     const s = defaultSchedule(false);
     expect(s.every((t) => t.active)).toBe(true);
     expect(s.every((t) => t.lastDoneAt === undefined)).toBe(true);
+  });
+
+  it('seeds a Salmonella resample task, due immediately, at the 72h routine interval', () => {
+    const s = defaultSchedule(false);
+    const task = s.find((t) => t.id === 'salmonella');
+    expect(task?.kind).toBe('SALMONELLA');
+    expect(task?.intervalHours).toBe(72);
+    expect(task?.lastDoneAt).toBeUndefined();
+  });
+});
+
+describe('setSalmonellaIsolation', () => {
+  it('tightens the resample interval to 12h on isolation', () => {
+    const s = setSalmonellaIsolation(defaultSchedule(false), true);
+    expect(s.find((t) => t.id === 'salmonella')?.intervalHours).toBe(12);
+  });
+
+  it('reverts to the 72h routine interval when isolation is lifted', () => {
+    const isolated = setSalmonellaIsolation(defaultSchedule(false), true);
+    const lifted = setSalmonellaIsolation(isolated, false);
+    expect(lifted.find((t) => t.id === 'salmonella')?.intervalHours).toBe(72);
+  });
+
+  it('leaves every other task untouched', () => {
+    const s = setSalmonellaIsolation(defaultSchedule(false), true);
+    expect(s.find((t) => t.id === 'tpr')?.intervalHours).toBe(4);
+  });
+
+  it('is safe on an empty or absent schedule', () => {
+    expect(setSalmonellaIsolation([], true)).toEqual([]);
+    expect(setSalmonellaIsolation(undefined, true)).toEqual([]);
   });
 });
