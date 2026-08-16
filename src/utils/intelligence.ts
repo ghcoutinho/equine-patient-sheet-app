@@ -78,6 +78,25 @@ function latestDerivedPanelValue(patient: Patient, derivedId: string): number | 
   return computeDerived(latest.values).find((r) => r.parameter.id === derivedId)?.value;
 }
 
+/**
+ * Hours between `Patient.surgeryPerformedAt` and when the most recent lab
+ * panel was collected — SAA is panel-sourced, so its post-op window has to
+ * be measured against the panel's own `collectedAt`, not the round's time.
+ * Undefined when there is no surgery time or no panel to measure against.
+ */
+function hoursSincePostop(patient: Patient): number | undefined {
+  if (!patient.surgeryPerformedAt) return undefined;
+  const panels = patient.labPanels ?? [];
+  if (!panels.length) return undefined;
+  const latest = [...panels].sort(
+    (a, b) => new Date(b.collectedAt).getTime() - new Date(a.collectedAt).getTime(),
+  )[0];
+  const surgeryMs = new Date(patient.surgeryPerformedAt).getTime();
+  const collectedMs = new Date(latest.collectedAt).getTime();
+  if (!Number.isFinite(surgeryMs) || !Number.isFinite(collectedMs)) return undefined;
+  return (collectedMs - surgeryMs) / (60 * 60 * 1000);
+}
+
 /** Thousands per microlitre → per microlitre. */
 const K_PER_UL_TO_PER_UL = 1000;
 
@@ -123,7 +142,17 @@ export function columnToEntry(
   const fibrinogen = latestPanelValue(patient, 'lab_fibrinogen');
   const pao2 = latestPanelValue(patient, 'lab_po2');
   const paco2 = latestPanelValue(patient, 'lab_pco2');
-  const panelSourced = { calcium, saa, ngal, rpr, bands, fibrinogen, pao2, paco2 };
+  const panelSourced = {
+    calcium,
+    saa,
+    ngal,
+    rpr,
+    bands,
+    fibrinogen,
+    pao2,
+    paco2,
+    hoursSincePostop: hoursSincePostop(patient),
+  };
 
   if (!column) return { ...panelSourced, wbc: wbcPerMicrolitre(patient, undefined) };
   const { vitals, gi, labs } = column;

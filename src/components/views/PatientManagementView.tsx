@@ -14,6 +14,14 @@ interface PatientManagementViewProps {
 
 const lifecycleOf = (p: Patient): PatientLifecycle => p.lifecycle ?? 'ACTIVE';
 
+/** ISO timestamp → the local value a `datetime-local` input needs. */
+const isoToLocalInput = (iso: string): string => {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 const LIFECYCLE_META: Record<PatientLifecycle, { label: string; chip: string }> = {
   AWAITING_ARRIVAL: { label: 'Awaiting arrival', chip: 'bg-[#FFFBEB] text-[#B45309] border-[#B45309]/30' },
   ACTIVE: { label: 'Active', chip: 'bg-[#ECFDF5] text-[#047857] border-[#047857]/30' },
@@ -94,6 +102,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
       bodySystems: p.bodySystems ?? [],
       attendingClinician: p.attendingClinician,
       isTest: p.isTest,
+      surgeryPerformedAt: p.surgeryPerformedAt,
     });
   };
 
@@ -388,6 +397,29 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                           .join(', ')}
                       </button>
                     )}
+                  </label>
+
+                  <label className="block">
+                    <span className="font-label-caps text-xs text-[#434655] block mb-1">
+                      Surgery performed at
+                    </span>
+                    <input
+                      type="datetime-local"
+                      value={draft.surgeryPerformedAt ? isoToLocalInput(draft.surgeryPerformedAt) : ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          surgeryPerformedAt: e.target.value
+                            ? new Date(e.target.value).toISOString()
+                            : undefined,
+                        })
+                      }
+                      className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+                    />
+                    <span className="block font-derived-value text-[11px] text-[#747686] mt-1">
+                      Leave blank if managed medically. Used only to read serum amyloid A
+                      correctly in the first 48h after coeliotomy.
+                    </span>
                   </label>
 
                   <div>

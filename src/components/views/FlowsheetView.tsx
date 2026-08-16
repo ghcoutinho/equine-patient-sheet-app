@@ -825,6 +825,20 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                   'peritonealFluid',
                 )}
                 {structuredRow(
+                  'peritoneal-odor',
+                  'Peritoneal fluid odor',
+                  '#B45309',
+                  (c) => c.gi.peritonealOdor,
+                  'peritonealOdor',
+                )}
+                {structuredRow(
+                  'peritoneal-bacteria',
+                  'Peritoneal intracellular bacteria',
+                  '#B45309',
+                  (c) => c.gi.peritonealBacteria,
+                  'peritonealBacteria',
+                )}
+                {structuredRow(
                   'response',
                   'Response to therapy',
                   '#B45309',

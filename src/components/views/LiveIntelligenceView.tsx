@@ -194,7 +194,7 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
                         </span>
                         <span
                           className={`font-label-caps text-[10px] px-1.5 py-0.5 rounded border ${
-                            b.interpretation === 'NORMAL'
+                            b.interpretation === 'NORMAL' || b.interpretation === 'NORMAL_POSTOP'
                               ? 'bg-[#ECFDF5] text-[#047857] border-[#047857]/30'
                               : 'bg-[#FEF2F2] text-[#B91C1C] border-[#B91C1C]/30'
                           }`}

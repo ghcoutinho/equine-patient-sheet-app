@@ -44,6 +44,8 @@ import {
   NASOGASTRIC_TUBE,
   PAIN_BEHAVIOUR,
   PERITONEAL_FLUID,
+  PERITONEAL_ODOR,
+  PERITONEAL_BACTERIA,
   PETECHIAE,
   RECTAL_EXAM,
   REFLUX_APPEARANCE,
@@ -145,11 +147,16 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [rectalExam, setRectalExam] = useState<string | undefined>();
   const [flashUltrasound, setFlashUltrasound] = useState<string | undefined>();
   const [peritonealFluid, setPeritonealFluid] = useState<string | undefined>();
+  const [peritonealOdor, setPeritonealOdor] = useState<string | undefined>();
+  const [peritonealBacteria, setPeritonealBacteria] = useState<string | undefined>();
   const [responseToTherapy, setResponseToTherapy] = useState<string | undefined>();
 
   // Labs
   const [lactate, setLactate] = useState<string>('');
   const [peritonealLactate, setPeritonealLactate] = useState<string>('');
+  const [peritonealProtein, setPeritonealProtein] = useState<string>('');
+  const [peritonealTcc, setPeritonealTcc] = useState<string>('');
+  const [peritonealNeutrophilsPct, setPeritonealNeutrophilsPct] = useState<string>('');
   const [pcv, setPcv] = useState<string>('');
   const [tp, setTp] = useState<string>('');
   const [wbc, setWbc] = useState<string>('');
@@ -221,6 +228,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       rectalExam,
       flashUltrasound,
       peritonealFluid,
+      peritonealOdor,
+      peritonealBacteria,
       responseToTherapy,
     };
 
@@ -282,6 +291,9 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       labs: {
         lactate: toNumber(lactate),
         peritonealLactate: toNumber(peritonealLactate),
+        peritonealProtein: toNumber(peritonealProtein),
+        peritonealTcc: toNumber(peritonealTcc),
+        peritonealDegenerateNeutrophilsPct: toNumber(peritonealNeutrophilsPct),
         pcv: toNumber(pcv),
         tp: toNumber(tp),
         wbc: toNumber(wbc),
@@ -674,6 +686,18 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             previous={latest?.gi?.peritonealFluid}
           />
           <OptionGrid
+            definition={PERITONEAL_ODOR}
+            value={peritonealOdor}
+            onChange={setPeritonealOdor}
+            previous={latest?.gi?.peritonealOdor}
+          />
+          <OptionGrid
+            definition={PERITONEAL_BACTERIA}
+            value={peritonealBacteria}
+            onChange={setPeritonealBacteria}
+            previous={latest?.gi?.peritonealBacteria}
+          />
+          <OptionGrid
             definition={RESPONSE_TO_THERAPY}
             value={responseToTherapy}
             onChange={setResponseToTherapy}
@@ -703,6 +727,38 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             accent: '#0E7490',
             field: 'peritonealLactate',
           })}
+          {numberField('Peritoneal total protein (g/dL)', peritonealProtein, setPeritonealProtein, {
+            placeholder: 'e.g. 2.1',
+            step: '0.1',
+            prev:
+              typeof latest?.labs?.peritonealProtein === 'number'
+                ? latest.labs.peritonealProtein
+                : undefined,
+            accent: '#0E7490',
+          })}
+          {numberField('Peritoneal TCC (/µL)', peritonealTcc, setPeritonealTcc, {
+            placeholder: 'e.g. 8000',
+            step: '100',
+            prev:
+              typeof latest?.labs?.peritonealTcc === 'number'
+                ? latest.labs.peritonealTcc
+                : undefined,
+            accent: '#0E7490',
+          })}
+          {numberField(
+            'Peritoneal degenerate neutrophils (%)',
+            peritonealNeutrophilsPct,
+            setPeritonealNeutrophilsPct,
+            {
+              placeholder: 'e.g. 15',
+              step: '1',
+              prev:
+                typeof latest?.labs?.peritonealDegenerateNeutrophilsPct === 'number'
+                  ? latest.labs.peritonealDegenerateNeutrophilsPct
+                  : undefined,
+              accent: '#0E7490',
+            },
+          )}
           {numberField('PCV (%)', pcv, setPcv, {
             placeholder: 'e.g. 42',
             prev: latest?.labs?.pcv,

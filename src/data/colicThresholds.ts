@@ -133,6 +133,69 @@ export function comparePeritonealLactate(
   return { peritoneal: pf, plasma: pl, gradient, exceedsPlasma, aboveSurvivalCeiling, reading, severity };
 }
 
+/**
+ * Peritoneal fluid cytology: total protein, total nucleated cell count and
+ * % degenerate neutrophils, the three quantitative findings a septic
+ * peritonitis read on tap depends on (gross appearance and odor are
+ * structured picks — see `PERITONEAL_FLUID`/`PERITONEAL_ODOR` in
+ * `data/clinicalAssessments.ts` — and intracellular bacteria is a boolean,
+ * not a threshold). Any of the three inputs may be missing; the reading only
+ * uses what was charted.
+ */
+export const PERITONEAL_CYTOLOGY = {
+  proteinNormalBelow: 2.5, // g/dL
+  proteinSuspectAbove: 3.0, // g/dL — suspect peritonitis
+  tccNormalBelow: 10000, // /µL
+  tccSepticAbove: 50000, // /µL — septic peritonitis
+  degenerateNeutrophilsNormalBelow: 30, // %
+  degenerateNeutrophilsSepticAbove: 50, // % — septic peritonitis confirmed
+  source: 'Colic Surgery in the Horse (Freeman); The Equine Acute Abdomen (Blikslager)',
+} as const;
+
+export interface PeritonealCytologyReading {
+  protein?: number;
+  tcc?: number;
+  degenerateNeutrophilsPct?: number;
+  reading: string;
+  severity: 'normal' | 'watch' | 'warning' | 'critical';
+}
+
+export function readPeritonealCytology(
+  protein: number | undefined,
+  tcc: number | undefined,
+  degenerateNeutrophilsPct: number | undefined,
+): PeritonealCytologyReading | undefined {
+  const has = (v: number | undefined): v is number => Number.isFinite(v);
+  if (!has(protein) && !has(tcc) && !has(degenerateNeutrophilsPct)) return undefined;
+
+  const septic =
+    (has(tcc) && tcc > PERITONEAL_CYTOLOGY.tccSepticAbove) ||
+    (has(degenerateNeutrophilsPct) &&
+      degenerateNeutrophilsPct > PERITONEAL_CYTOLOGY.degenerateNeutrophilsSepticAbove);
+  const suspect = has(protein) && protein > PERITONEAL_CYTOLOGY.proteinSuspectAbove;
+
+  const parts: string[] = [];
+  if (has(protein)) parts.push(`total protein ${protein} g/dL`);
+  if (has(tcc)) parts.push(`TCC ${tcc}/µL`);
+  if (has(degenerateNeutrophilsPct)) parts.push(`${degenerateNeutrophilsPct}% degenerate neutrophils`);
+  const charted = parts.join(', ');
+
+  let severity: PeritonealCytologyReading['severity'];
+  let reading: string;
+  if (septic) {
+    severity = 'critical';
+    reading = `${charted} — TCC above ${PERITONEAL_CYTOLOGY.tccSepticAbove}/µL or degenerate neutrophils above ${PERITONEAL_CYTOLOGY.degenerateNeutrophilsSepticAbove}% is reported as confirming septic peritonitis.`;
+  } else if (suspect) {
+    severity = 'warning';
+    reading = `${charted} — total protein above ${PERITONEAL_CYTOLOGY.proteinSuspectAbove} g/dL raises suspicion of peritonitis.`;
+  } else {
+    severity = 'normal';
+    reading = `${charted} — within the reported normal range.`;
+  }
+
+  return { protein, tcc, degenerateNeutrophilsPct, reading, severity };
+}
+
 /* ------------------------------------------------------------------ */
 /* Haemoconcentration and PCV/TP splitting                              */
 /* ------------------------------------------------------------------ */
@@ -570,4 +633,23 @@ export const INSENSIBLE_LOSS = {
   maxMlPerKgPerDay: 33.6,
   source: 'Ward convention — supplied by the attending clinician, not a published figure.',
   provenance: 'ward-convention' as const,
+} as const;
+
+/* ------------------------------------------------------------------ */
+/* Serum amyloid A, post-coeliotomy window                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * SAA rises as an expected response to coeliotomy itself, not only to
+ * complications. `biomarkerEvaluator.ts` used to flag anything over 50 µg/mL
+ * as "active inflammation" with no source at all — this replaces that with
+ * Bowlby et al. 2021's actual finding, applied only within the window it
+ * describes.
+ */
+export const SAA_POSTOP = {
+  /** Upper bound of the normal range in the first 48h after coeliotomy. */
+  normalCeilingWithin48h: 568, // µg/mL
+  windowHours: 48,
+  source:
+    'Bowlby et al. 2021, cited in Bauck 2023 — serum amyloid A up to 568 µg/mL is reported in healthy horses in the first 48h after coeliotomy and intestinal decompression, without GI disease.',
 } as const;

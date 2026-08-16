@@ -415,6 +415,52 @@ the round-based triggers use, so `wardAlert`/`topTrigger` need no special
 case. A resolved complication, or one with `NOT_ESTABLISHED` tier, produces
 no trigger.
 
+### Literature review plan, Sprint 3 (2026-08-15)
+
+**A8 (blood gas, 10 parameters) turned out to already be implemented** —
+`labs.ts`'s `BLOOD_GAS_FIELDS` (pH, pCO₂, pO₂, HCO₃⁻, base excess) plus five
+of `CHEMISTRY_FIELDS` (Na⁺, K⁺, Cl⁻, Mg²⁺, ionised Ca²⁺), all with Cornell
+reference ranges. The review plan's original "Ausente" verdict only checked
+`types.ts`; lab panel fields live in `labs.ts`/`cornellReferenceRanges.ts`
+instead, so this needed a doc correction rather than any code — same shape
+as A6 in the prior sprint map revision.
+
+**A7 — peritoneal fluid cytology, the 5 fields genuinely missing.** The
+review plan's "cor estruturada (não texto livre)" gap was also already
+wrong: `PERITONEAL_FLUID` (`data/clinicalAssessments.ts`) is a structured,
+severity-tagged pick, not free text. What was actually missing: total
+protein, TCC and % degenerate neutrophils (`readPeritonealCytology`,
+`data/colicThresholds.ts`, cited to Freeman/Blikslager, same source string
+as `PERITONEAL_LACTATE`/`PCV_TP`/`REFLUX`), plus odor and intracellular
+bacteria as new structured picks (`PERITONEAL_ODOR`, `PERITONEAL_BACTERIA`).
+Intracellular bacteria present is its own critical call-surgeon trigger
+(`peritoneal-bacteria`) — Freeman/Blikslager report it as confirming septic
+peritonitis and indicating emergency surgery, a distinct finding from the
+cytology thresholds. Wired into `RoundEntryView`, `ColicReadouts`,
+`FlowsheetView` and `callSurgeonTriggers.ts` the same way the Sprint 1
+trend fields were.
+
+**B7 — SAA read correctly in the post-coeliotomy window.**
+`biomarkerEvaluator.ts` previously flagged any SAA over 50 µg/mL as "active
+inflammation" with no source at all (the code's own comment already said
+so). That floor is gone. In its place: Bowlby et al. 2021's finding
+(`SAA_POSTOP`, `data/colicThresholds.ts`) that SAA up to 568 µg/mL is normal
+in the first 48h after coeliotomy, applied only within that window and
+reported as a distinct `NORMAL_POSTOP` interpretation rather than folded
+into `NORMAL` — so it's visible that the read is contextual, not silent.
+This needed a new field, `Patient.surgeryPerformedAt` (set in Patient
+Records, blank by default — many colic admissions are managed medically and
+never see surgery), and `intelligence.ts`'s `columnToEntry` gained a
+`hoursSincePostop` helper that measures against the *lab panel's*
+`collectedAt`, not the round's time, since SAA is panel-sourced. Hoeberg's
+sepsis/non-survival cut-offs (1,050/1,250 µg/mL) are unchanged and still
+override the postop-normal read if crossed.
+
+18 new tests. Live-verified: peritoneal cytology and intracellular-bacteria
+triggers firing correctly from a charted round; SAA of 500 µg/mL rendering
+as green "NORMAL POSTOP" (not the red sepsis-risk styling) once a surgery
+time within the last 20h was set on the patient record.
+
 ---
 
 ## Stack and commands
@@ -521,7 +567,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 355 tests across 20 files in
+own — `vite.config.ts` is enough). 373 tests across 20 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

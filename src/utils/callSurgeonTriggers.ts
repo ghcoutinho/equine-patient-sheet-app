@@ -14,6 +14,7 @@ import {
   readLactateTrend,
   readPyrexia,
   readTemperatureTrend,
+  readPeritonealCytology,
 } from '../data/colicThresholds';
 
 /**
@@ -230,6 +231,40 @@ export function evaluateCallSurgeonTriggers(
       evidence: column.gi.peritonealFluid as string,
       rule: 'Serosanguineous, frank blood or enterocentesis',
       severity: 'critical',
+    });
+  }
+  if (column.gi.peritonealBacteria === 'Present') {
+    out.push({
+      id: 'peritoneal-bacteria',
+      label: 'Intracellular bacteria on peritoneal cytology',
+      evidence: 'Present',
+      rule: 'Confirms septic peritonitis — emergency surgery',
+      severity: 'critical',
+    });
+  }
+  if (severityOf('peritonealOdor', column.gi.peritonealOdor) === 'critical') {
+    out.push({
+      id: 'peritoneal-odor',
+      label: 'Fetid peritoneal fluid',
+      evidence: column.gi.peritonealOdor as string,
+      rule: 'Fetid odor is reported with intestinal rupture',
+      severity: 'critical',
+    });
+  }
+  const peritonealCytology = readPeritonealCytology(
+    has(column.labs.peritonealProtein) ? column.labs.peritonealProtein : undefined,
+    has(column.labs.peritonealTcc) ? column.labs.peritonealTcc : undefined,
+    has(column.labs.peritonealDegenerateNeutrophilsPct)
+      ? column.labs.peritonealDegenerateNeutrophilsPct
+      : undefined,
+  );
+  if (peritonealCytology && peritonealCytology.severity !== 'normal') {
+    out.push({
+      id: 'peritoneal-cytology',
+      label: 'Peritoneal fluid cytology',
+      evidence: peritonealCytology.reading,
+      rule: 'TCC/degenerate neutrophils above threshold = septic peritonitis; total protein above threshold = suspect',
+      severity: peritonealCytology.severity === 'watch' ? 'warning' : peritonealCytology.severity,
     });
   }
 

@@ -6,6 +6,8 @@ import {
   PLASMA_LACTATE_BANDS,
   comparePeritonealLactate,
   PERITONEAL_LACTATE,
+  readPeritonealCytology,
+  PERITONEAL_CYTOLOGY,
   readPcvTp,
   PCV_TP,
   readReflux,
@@ -90,6 +92,11 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
 
   const band = plasmaLactateBand(plasma);
   const peritonealCmp = comparePeritonealLactate(peritoneal, plasma);
+  const peritonealCytology = readPeritonealCytology(
+    num(latest.labs?.peritonealProtein),
+    num(latest.labs?.peritonealTcc),
+    num(latest.labs?.peritonealDegenerateNeutrophilsPct),
+  );
   const pcvTp = readPcvTp(pcv, tp, num(previous?.labs?.pcv), num(previous?.labs?.tp));
   const refluxReading = readReflux(reflux);
   const hrReading = readHeartRate(hr, previous?.vitals?.heartRate);
@@ -119,7 +126,13 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
   const endotoxHits = endotoxSigns.filter((s) => s.hit);
 
   const nothingCharted =
-    !band && !peritonealCmp && !pcvTp && !refluxReading && !hrReading && endotoxSigns.length === 0;
+    !band &&
+    !peritonealCmp &&
+    !peritonealCytology &&
+    !pcvTp &&
+    !refluxReading &&
+    !hrReading &&
+    endotoxSigns.length === 0;
 
   if (nothingCharted) return null;
 
@@ -185,6 +198,17 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
           </Readout>
         ) : null}
 
+        {/* Peritoneal fluid cytology */}
+        {peritonealCytology && (
+          <Readout
+            title="Peritoneal fluid cytology"
+            severity={peritonealCytology.severity}
+            source={PERITONEAL_CYTOLOGY.source}
+          >
+            {peritonealCytology.reading}
+          </Readout>
+        )}
+
         {/* PCV / TP splitting */}
         {pcvTp && (
           <Readout
@@ -248,7 +272,7 @@ export const ColicReadouts: React.FC<ColicReadoutsProps> = ({
       </div>
 
       {/* The caveat that has to sit next to a normal tap */}
-      {(peritoneal !== undefined || latest.gi?.peritonealFluid) && (
+      {(peritoneal !== undefined || latest.gi?.peritonealFluid || peritonealCytology) && (
         <p className="font-derived-value text-[11px] text-[#434655] bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 mt-2.5 leading-snug">
           {BLAND_TAP_CAVEAT}
         </p>

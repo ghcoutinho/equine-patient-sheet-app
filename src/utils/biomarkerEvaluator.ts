@@ -1,4 +1,5 @@
 import type { FlowsheetEntry, BiomarkerEvaluator } from '../types';
+import { SAA_POSTOP } from '../data/colicThresholds';
 
 /**
  * Inflammatory biomarkers, neonatal foal sepsis.
@@ -7,9 +8,13 @@ import type { FlowsheetEntry, BiomarkerEvaluator } from '../types';
  * receive data — SAA, NGAL and RPR were not chartable anywhere — and its
  * thresholds carried no source at all, published or otherwise. Both are fixed
  * as of this pass: the values are now sourced (see intelligence.ts's
- * columnToEntry, which reads them from the most recent lab panel), and every
- * cutoff below traces to a specific paper except the SAA "elevated" floor,
- * which is labelled as unsourced rather than attributed to one.
+ * columnToEntry, which reads them from the most recent lab panel).
+ *
+ * The SAA "elevated" floor of 50 µg/mL this module previously used had no
+ * source at all and is gone. In its place: Bowlby et al. 2021's finding that
+ * SAA rises as an expected response to coeliotomy itself, reported
+ * separately (`NORMAL_POSTOP`) rather than folded into `NORMAL`, and applied
+ * only within the 48h window that finding actually covers.
  */
 
 const SAA_SOURCE =
@@ -25,19 +30,21 @@ export function evaluateBiomarkers(entry: Partial<FlowsheetEntry>): BiomarkerEva
   const result: BiomarkerEvaluator = {};
 
   if (entry.saa !== undefined) {
-    let interpretation: 'NORMAL' | 'ACTIVE_INFLAMMATION' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK' =
+    const withinPostopWindow =
+      entry.hoursSincePostop !== undefined && entry.hoursSincePostop < SAA_POSTOP.windowHours;
+
+    let interpretation: 'NORMAL' | 'NORMAL_POSTOP' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK' =
       'NORMAL';
+    let source = SAA_SOURCE;
     if (entry.saa > 1250) {
       interpretation = 'HIGH_MORTALITY_RISK';
     } else if (entry.saa > 1050) {
       interpretation = 'SEPSIS_RISK';
-    } else if (entry.saa > 50) {
-      // Not one of Hoeberg's two reported cut-offs — a general "clearly above
-      // the healthy-horse baseline" floor, unsourced. Flagged rather than
-      // attributed, per rule 3.
-      interpretation = 'ACTIVE_INFLAMMATION';
+    } else if (withinPostopWindow && entry.saa <= SAA_POSTOP.normalCeilingWithin48h) {
+      interpretation = 'NORMAL_POSTOP';
+      source = SAA_POSTOP.source;
     }
-    result.saa = { value: entry.saa, interpretation, source: SAA_SOURCE };
+    result.saa = { value: entry.saa, interpretation, source };
   }
 
   if (entry.ngal !== undefined) {

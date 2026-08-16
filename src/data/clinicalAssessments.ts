@@ -174,6 +174,34 @@ export const PERITONEAL_FLUID: AssessmentDefinition = {
   ],
 };
 
+export const PERITONEAL_ODOR: AssessmentDefinition = {
+  id: 'peritonealOdor',
+  label: 'Peritoneal fluid odor',
+  family: 'gi',
+  prompt: 'Select peritoneal fluid odor',
+  columns: 2,
+  options: [
+    { value: 'Normal / no odor', severity: 'normal' },
+    { value: 'Fetid / foul', severity: 'critical', hint: 'Reported with intestinal rupture' },
+  ],
+};
+
+export const PERITONEAL_BACTERIA: AssessmentDefinition = {
+  id: 'peritonealBacteria',
+  label: 'Intracellular bacteria on cytology',
+  family: 'gi',
+  prompt: 'Intracellular bacteria seen on peritoneal fluid cytology?',
+  columns: 2,
+  options: [
+    { value: 'Absent', severity: 'normal' },
+    {
+      value: 'Present',
+      severity: 'critical',
+      hint: 'Confirms septic peritonitis — emergency surgery',
+    },
+  ],
+};
+
 export const REFLUX_APPEARANCE: AssessmentDefinition = {
   id: 'refluxAppearance',
   label: 'Reflux appearance',
@@ -356,6 +384,8 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
   RECTAL_EXAM,
   FLASH_ULTRASOUND,
   PERITONEAL_FLUID,
+  PERITONEAL_ODOR,
+  PERITONEAL_BACTERIA,
   REFLUX_APPEARANCE,
   NASOGASTRIC_TUBE,
   RESPONSE_TO_THERAPY,

@@ -8,13 +8,16 @@ import {
   readLactateTrend,
   readPyrexia,
   readTemperatureTrend,
+  readPeritonealCytology,
   PLASMA_LACTATE_BANDS,
   PERITONEAL_LACTATE,
+  PERITONEAL_CYTOLOGY,
   PCV_TP,
   REFLUX,
   HEART_RATE,
   PYREXIA,
   INSENSIBLE_LOSS,
+  SAA_POSTOP,
 } from '../colicThresholds';
 
 /**
@@ -335,5 +338,47 @@ describe('INSENSIBLE_LOSS', () => {
     expect(INSENSIBLE_LOSS.maxMlPerKgPerDay).toBe(33.6);
     expect(INSENSIBLE_LOSS.provenance).toBe('ward-convention');
     expect(INSENSIBLE_LOSS.source).not.toContain('et al');
+  });
+});
+
+describe('readPeritonealCytology', () => {
+  it('returns undefined when nothing was charted', () => {
+    expect(readPeritonealCytology(undefined, undefined, undefined)).toBeUndefined();
+  });
+
+  it('is normal within all three published ranges', () => {
+    const r = readPeritonealCytology(2.0, 5000, 10);
+    expect(r?.severity).toBe('normal');
+  });
+
+  it('is warning when total protein alone crosses the suspect threshold', () => {
+    const r = readPeritonealCytology(3.1, 5000, 10);
+    expect(r?.severity).toBe('warning');
+    expect(r?.reading).toContain('suspicion of peritonitis');
+  });
+
+  it('is critical when TCC crosses the septic threshold, even with normal protein', () => {
+    const r = readPeritonealCytology(2.0, 50001, 10);
+    expect(r?.severity).toBe('critical');
+    expect(r?.reading).toContain('septic peritonitis');
+  });
+
+  it('is critical when degenerate neutrophils cross the septic threshold', () => {
+    const r = readPeritonealCytology(2.0, 5000, 51);
+    expect(r?.severity).toBe('critical');
+  });
+
+  it('works from a single charted input', () => {
+    const r = readPeritonealCytology(undefined, 60000, undefined);
+    expect(r?.severity).toBe('critical');
+    expect(PERITONEAL_CYTOLOGY.tccSepticAbove).toBe(50000);
+  });
+});
+
+describe('SAA_POSTOP', () => {
+  it('holds the Bowlby-sourced 48h postop ceiling', () => {
+    expect(SAA_POSTOP.normalCeilingWithin48h).toBe(568);
+    expect(SAA_POSTOP.windowHours).toBe(48);
+    expect(SAA_POSTOP.source).toContain('Bowlby');
   });
 });

@@ -174,6 +174,10 @@ export interface GIData {
   rectalExam?: string;
   flashUltrasound?: string;
   peritonealFluid?: string;
+  /** Structured odor pick — see `data/clinicalAssessments.ts`'s `PERITONEAL_ODOR`. */
+  peritonealOdor?: string;
+  /** Intracellular bacteria on cytology — 'Present' confirms septic peritonitis. */
+  peritonealBacteria?: string;
   responseToTherapy?: string;
 }
 
@@ -212,6 +216,12 @@ export interface LabsData {
   igg?: number | 'Pending'; // mg/dL
   /** Total white cell count, K/µL. Leukopenia is an endotoxaemia sign. */
   wbc?: number;
+  /** Peritoneal fluid total protein, g/dL. >3.0 raises suspicion of peritonitis. */
+  peritonealProtein?: number;
+  /** Peritoneal fluid total nucleated cell count, /µL. >50,000 = septic peritonitis. */
+  peritonealTcc?: number;
+  /** % degenerate neutrophils on peritoneal fluid cytology. >50% confirms septic peritonitis. */
+  peritonealDegenerateNeutrophilsPct?: number;
 }
 
 /**
@@ -449,6 +459,14 @@ export interface Patient {
   /** Primary problem, shown as the flowsheet banner. */
   diagnosis?: string;
   bodySystems?: BodySystem[];
+  /**
+   * ISO timestamp of coeliotomy, if one was performed — undefined for a
+   * medically managed patient. Only use: suppressing the SAA sepsis read for
+   * the first 48h post-op, where Bowlby et al. 2021 reports up to 568 µg/mL
+   * as expected. Never inferred from `currentAdmissionStartedAt` — many
+   * colic admissions are never taken to surgery.
+   */
+  surgeryPerformedAt?: string;
   attendingClinician?: string;
   schedule?: ScheduledTask[];
   /** Drugs, fluids and infusions, open and closed. */
@@ -552,7 +570,13 @@ export interface ScoreBounds {
 export interface BiomarkerEvaluator {
   saa?: {
     value: number;
-    interpretation: 'NORMAL' | 'ACTIVE_INFLAMMATION' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK';
+    /**
+     * `NORMAL_POSTOP` is Bowlby et al. 2021's finding, not Hoeberg's: up to
+     * 568 µg/mL in the first 48h after coeliotomy is expected in horses with
+     * no GI disease, so it is reported separately from a plain `NORMAL` read
+     * outside that window rather than folded into it.
+     */
+    interpretation: 'NORMAL' | 'NORMAL_POSTOP' | 'SEPSIS_RISK' | 'HIGH_MORTALITY_RISK';
     source: string;
   };
   ngal?: {
@@ -602,6 +626,13 @@ export interface FlowsheetEntry {
   ck?: number;
   rbc?: number;
   saa?: number;
+  /**
+   * Hours since `Patient.surgeryPerformedAt`, computed in `columnToEntry` —
+   * never entered directly. Bowlby et al. 2021 (via Bauck 2023) reports SAA
+   * up to 568 µg/mL as normal in the first 48h after coeliotomy; undefined
+   * when the patient has no recorded surgery time.
+   */
+  hoursSincePostop?: number;
   ngal?: number;
   platelets?: number;
   rdw?: number;

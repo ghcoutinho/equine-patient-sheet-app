@@ -103,6 +103,50 @@ describe('lactate-rising trigger', () => {
   });
 });
 
+describe('peritoneal cytology triggers', () => {
+  it('fires critical when intracellular bacteria are present', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { peritonealBacteria: 'Present' } }));
+    const fired = t.find((x) => x.id === 'peritoneal-bacteria');
+    expect(fired?.severity).toBe('critical');
+  });
+
+  it('does not fire when bacteria are absent', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { peritonealBacteria: 'Absent' } }));
+    expect(t.find((x) => x.id === 'peritoneal-bacteria')).toBeUndefined();
+  });
+
+  it('fires critical on fetid peritoneal odor', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { peritonealOdor: 'Fetid / foul' } }));
+    expect(t.find((x) => x.id === 'peritoneal-odor')?.severity).toBe('critical');
+  });
+
+  it('does not fire on normal peritoneal odor', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { peritonealOdor: 'Normal / no odor' } }));
+    expect(t.find((x) => x.id === 'peritoneal-odor')).toBeUndefined();
+  });
+
+  it('fires critical from septic-range peritoneal cytology', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ labs: { peritonealTcc: 60000 } }),
+    );
+    expect(t.find((x) => x.id === 'peritoneal-cytology')?.severity).toBe('critical');
+  });
+
+  it('fires warning from suspect-range total protein alone', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ labs: { peritonealProtein: 3.5 } }),
+    );
+    expect(t.find((x) => x.id === 'peritoneal-cytology')?.severity).toBe('warning');
+  });
+
+  it('does not fire from cytology within normal ranges', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ labs: { peritonealProtein: 2.0, peritonealTcc: 5000 } }),
+    );
+    expect(t.find((x) => x.id === 'peritoneal-cytology')).toBeUndefined();
+  });
+});
+
 describe('temperature-rising trigger', () => {
   it('fires when temperature climbs past the dead-band into a tier', () => {
     const prev = column({ vitals: { temperatureC: 38.0 } });
