@@ -375,9 +375,45 @@ charted "In place" on both the current and previous round *and* reflux was
 below the significance threshold both times — two consecutive checks, never
 one, and never suggests removing a tube the round didn't chart as present.
 
-Remaining sprints (structural complication taxonomy, blood gas module,
-validated pain score, Salmonella surveillance, etc.) are sequenced in the
-companion plan document; not started as of this entry.
+Remaining sprints (blood gas module, validated pain score, Salmonella
+surveillance, etc.) are sequenced in the companion plan document.
+
+### Literature review plan, Sprint 2 (2026-08-15)
+
+**Complications, by identity and consequence, not by symptom text (A5).**
+Gandini et al. 2023 found that none of 272 reviewed studies defined
+"complication" explicitly. `types.ts` adds `ComplicationId` (19 members —
+every complication that paper's four temporal-consequence tables name),
+`ComplicationFrame` (`'MEDICAL' | 'RELAPAROTOMY' | 'FATAL' |
+'POST_DISCHARGE'`) and `Complication extends Recorded`
+(`{id, complicationId, frame, note?, resolvedAt?, resolvedBy?}`, closed
+without deleting — same pattern as `Treatment.stoppedAt`). `frame` is a
+per-instance field, not fixed per `ComplicationId`: Gandini's own tables show
+the same complication (e.g. postoperative colic) landing in different frames
+depending on individual patient outcome.
+
+`data/complications.ts`'s `COMPLICATION_META` supplies a standardised
+definition for the roughly half of the 19 where the source review documents
+explicitly proposed one; the rest show "No standardised definition proposed
+yet" rather than an invented cut-off — the absence is a faithful reflection
+of what the literature doesn't yet agree on.
+
+**Odds-ratio-weighted severity, not raw prevalence (A1).** Loomes et al. 2025
+(Table 4) is the only source in this app's evidence base with an
+elective-surgery comparator, and it exists for 8 of the 19 complications.
+`orTierFor` maps OR > 10 → CRITICAL, OR 4-10 → ALERT, a non-significant OR or
+OR < 4 → WATCH, and no comparator at all → `NOT_ESTABLISHED` — reported
+honestly rather than defaulted into a tier the data doesn't support. This is
+why fever (OR 17.97) outranks the far more prevalent postoperative colic (OR
+4.11) in the new `ComplicationsView` tab, and why 11 of the 19 complications
+(colic-only findings with nothing to compare against) never escalate ward
+severity from this source alone.
+
+`utils/wardAlerts.ts` now also derives triggers from open, unresolved
+complications at CRITICAL/ALERT/WATCH tier — the same `ClinicalTrigger` shape
+the round-based triggers use, so `wardAlert`/`topTrigger` need no special
+case. A resolved complication, or one with `NOT_ESTABLISHED` tier, produces
+no trigger.
 
 ---
 
@@ -465,6 +501,7 @@ and one tab with three different names.
 | `utils/episodeTimeline.ts` | Rounds + labs + treatment events, merged and sorted |
 | `utils/wardAlerts.ts` | Per-patient severity from the trigger engine, ward-wide |
 | `utils/nsaid.ts` | `nsaidGivenWithin` — derives recent-NSAID from charted administrations |
+| `data/complications.ts` | Standardised complication definitions + `orTierFor` OR-weighted severity |
 
 ### Two invariants worth stating
 
@@ -484,7 +521,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 347 tests across 19 files in
+own — `vite.config.ts` is enough). 355 tests across 20 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

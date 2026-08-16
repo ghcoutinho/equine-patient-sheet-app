@@ -64,7 +64,59 @@ export type ViewTab =
   | 'labs'
   | 'sources'
   | 'fluids'
-  | 'evolution';
+  | 'evolution'
+  | 'complications';
+
+/**
+ * Complications, by identity — not by symptom text. Gandini et al. 2023
+ * found that none of 272 reviewed studies defined "complication" explicitly,
+ * and this list (plus the standardised definitions in
+ * `data/complications.ts`) is this app's answer to that gap. The set is
+ * every complication that paper's four temporal-consequence tables name,
+ * not an invented taxonomy.
+ */
+export type ComplicationId =
+  | 'POR'
+  | 'INCISIONAL'
+  | 'POC'
+  | 'DIARRHEA'
+  | 'THROMBOPHLEBITIS'
+  | 'PYREXIA'
+  | 'LAMINITIS'
+  | 'PERITONITIS'
+  | 'SALMONELLA'
+  | 'ADHESIONS'
+  | 'ANASTOMOSIS_PROBLEM'
+  | 'SIRS_ENDOTOXEMIA'
+  | 'RESPIRATORY'
+  | 'HEMOPERITONEUM'
+  | 'MYOPATHY_NEUROPATHY'
+  | 'NON_VIABLE_BOWEL'
+  | 'INCISIONAL_HERNIA'
+  | 'WEIGHT_LOSS'
+  | 'RECURRENCE';
+
+/**
+ * Consequence, not diagnosis, is the axis — Gandini et al. 2023's central
+ * structural finding. The same complication (e.g. POC) can land in any of
+ * these depending on what actually happened to this patient, so `frame` is
+ * chosen per instance when it's charted, not fixed per `ComplicationId`.
+ */
+export type ComplicationFrame = 'MEDICAL' | 'RELAPAROTOMY' | 'FATAL' | 'POST_DISCHARGE';
+
+/**
+ * One charted complication. `resolvedAt`/`resolvedBy` close it without
+ * deleting it — same pattern as `Treatment.stoppedAt`, so the record of what
+ * happened and when survives.
+ */
+export interface Complication extends Recorded {
+  id: string;
+  complicationId: ComplicationId;
+  frame: ComplicationFrame;
+  note?: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
 
 export type FlowsheetSection = 'VITALS' | 'GI' | 'LABS';
 
@@ -403,6 +455,8 @@ export interface Patient {
   treatments?: Treatment[];
   /** Full laboratory panels, newest last. */
   labPanels?: LabPanel[];
+  /** Complications charted this stay, open and resolved. See `Complication`. */
+  complications?: Complication[];
   /**
    * Date of birth, ISO `YYYY-MM-DD`. When present the age class is computed
    * from it rather than typed, so it stays correct as the patient ages —

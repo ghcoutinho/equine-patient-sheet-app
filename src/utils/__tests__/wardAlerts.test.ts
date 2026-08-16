@@ -68,6 +68,43 @@ describe('wardAlert', () => {
     });
     expect(wardAlert(p).severity).toBe('normal');
   });
+
+  it('is critical from an open, high-OR complication alone, with nothing else charted', () => {
+    const p = patient({
+      complications: [
+        { id: 'c1', complicationId: 'PYREXIA', frame: 'MEDICAL', at: '2026-08-15T00:00:00Z', by: 'Dr Test' },
+      ],
+    });
+    const alert = wardAlert(p);
+    expect(alert.severity).toBe('critical');
+    expect(alert.triggers.some((t) => t.id === 'complication-c1')).toBe(true);
+  });
+
+  it('does not raise severity from a resolved complication', () => {
+    const p = patient({
+      complications: [
+        {
+          id: 'c1',
+          complicationId: 'PYREXIA',
+          frame: 'MEDICAL',
+          at: '2026-08-15T00:00:00Z',
+          by: 'Dr Test',
+          resolvedAt: '2026-08-16T00:00:00Z',
+          resolvedBy: 'Dr Test',
+        },
+      ],
+    });
+    expect(wardAlert(p).severity).toBe('normal');
+  });
+
+  it('does not raise severity from a complication with no established odds ratio', () => {
+    const p = patient({
+      complications: [
+        { id: 'c1', complicationId: 'PERITONITIS', frame: 'MEDICAL', at: '2026-08-15T00:00:00Z', by: 'Dr Test' },
+      ],
+    });
+    expect(wardAlert(p).severity).toBe('normal');
+  });
 });
 
 describe('wardAlerts', () => {

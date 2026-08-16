@@ -106,6 +106,14 @@ export const NAV_ITEMS: NavItem[] = [
     hint: 'Every round, lab and treatment event this admission, merged and in order',
   },
   {
+    id: 'complications',
+    label: 'Complications',
+    shortLabel: 'Complic.',
+    icon: 'report',
+    group: 'decision',
+    hint: 'Charted complications by consequence, ranked by odds ratio vs. elective surgery',
+  },
+  {
     id: 'calculator',
     label: 'Dose Calculator',
     shortLabel: 'Doses',
