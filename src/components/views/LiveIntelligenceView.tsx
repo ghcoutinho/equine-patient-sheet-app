@@ -3,7 +3,7 @@ import type { Patient, ViewTab } from '../../types';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { latestColumn } from '../../utils/admission';
 import { nsaidGivenWithin } from '../../utils/nsaid';
-import { columnToEntry, buildPanels } from '../../utils/intelligence';
+import { columnToEntry, buildPanels, panelHasData } from '../../utils/intelligence';
 import { getPrognosticFlags } from '../../utils/prognosis';
 import { evaluateBiomarkers } from '../../utils/biomarkerEvaluator';
 import {
@@ -14,6 +14,11 @@ import {
 import { computeDue, DUE_STYLES } from '../../utils/schedule';
 import { ColicReadouts } from './ColicReadouts';
 import { ScorePanelCard } from '../ui/ScorePanelCard';
+import {
+  LESION_TYPE_LABEL,
+  NUTRITION_TIMELINE_SOURCE,
+  readNutritionTimeline,
+} from '../../data/nutritionTimeline';
 
 interface LiveIntelligenceViewProps {
   patient: Patient;
@@ -61,6 +66,23 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
   const dueTasks = computeDue(patient.schedule, now).filter(
     (d) => d.state === 'OVERDUE' || d.state === 'DUE_NOW',
   );
+
+  // Whether SIRS has resolved gates the LI_SIRS/LI_RESECTION refeeding
+  // stages — undefined (not 'normal' vs 'critical') when the SIRS panel
+  // itself has nothing charted, or sits in the uncertain 'watch' band.
+  const sirsPanelResult = panels.find((p) => p.id === 'sirs');
+  const sirsResolved =
+    !sirsPanelResult || !panelHasData(sirsPanelResult)
+      ? undefined
+      : sirsPanelResult.severity === 'normal'
+        ? true
+        : sirsPanelResult.severity === 'critical'
+          ? false
+          : undefined;
+  const nutrition =
+    !patient.isFoal && patient.lesionType
+      ? readNutritionTimeline(patient.lesionType, patient.surgeryPerformedAt, sirsResolved, now)
+      : undefined;
 
   const biomarkerRows = [
     biomarkers.saa && { label: 'Serum amyloid A', ...biomarkers.saa, unit: 'mg/L' },
@@ -170,6 +192,60 @@ export const LiveIntelligenceView: React.FC<LiveIntelligenceViewProps> = ({
                 </ul>
               )}
             </section>
+            )}
+
+            {/* Post-op refeeding timeline — adult colic only, and only once a lesion type is set */}
+            {!patient.isFoal && (
+              <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4">
+                <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-1">
+                  Post-op refeeding timeline
+                </h2>
+                {patient.lesionType && nutrition ? (
+                  <>
+                    <p className="font-derived-value text-xs text-[#747686] mb-3">
+                      {LESION_TYPE_LABEL[patient.lesionType]} · {NUTRITION_TIMELINE_SOURCE}
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-2.5 mb-2.5">
+                      <div
+                        className={`rounded border p-2.5 font-derived-value text-xs ${
+                          nutrition.waterStatus === 'due-now'
+                            ? 'bg-[#ECFDF5] border-[#047857]/30 text-[#047857]'
+                            : nutrition.waterStatus === 'gated-on-sirs'
+                              ? 'bg-[#FFF7ED] border-[#C2410C]/30 text-[#C2410C]'
+                              : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#434655]'
+                        }`}
+                      >
+                        {nutrition.waterReading}
+                      </div>
+                      <div
+                        className={`rounded border p-2.5 font-derived-value text-xs ${
+                          nutrition.foodStatus === 'due-now'
+                            ? 'bg-[#ECFDF5] border-[#047857]/30 text-[#047857]'
+                            : nutrition.foodStatus === 'gated-on-sirs'
+                              ? 'bg-[#FFF7ED] border-[#C2410C]/30 text-[#C2410C]'
+                              : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#434655]'
+                        }`}
+                      >
+                        {nutrition.foodReading}
+                      </div>
+                    </div>
+                    <p className="font-derived-value text-xs text-[#0b1c30]">
+                      <span className="font-label-caps text-[10px] text-[#747686] uppercase">
+                        Diet
+                      </span>{' '}
+                      — {nutrition.diet}
+                    </p>
+                  </>
+                ) : (
+                  <p className="font-derived-value text-xs text-[#434655]">
+                    No lesion type set for {patient.name}.{' '}
+                    <button onClick={() => onNavigate('patients')} className="text-[#0037b0] underline">
+                      Classify it in Patient Records
+                    </button>{' '}
+                    to compute a refeeding timeline.
+                  </p>
+                )}
+              </section>
             )}
 
             {/* Biomarkers only appear once one has been entered */}

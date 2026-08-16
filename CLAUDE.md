@@ -537,6 +537,57 @@ citation; the Salmonella panel's isolation toggle and sample log both
 persist, and the isolation-criteria readout correctly reports "2 of 3" for
 a partial match.
 
+### Literature review plan, Sprint 5 (2026-08-15) — plan complete
+
+**B4 — post-op refeeding timeline, by lesion type (Bauck 2023).** New
+`data/nutritionTimeline.ts`: four lesion-type rows (non-strangulating,
+strangulating small intestine, large intestine with SIRS, large intestine
+resection), each with its own water/food start time and diet. `Patient`
+gains `lesionType` — a clinician-set classification, deliberately separate
+from `diagnosis` free text ("large colon volvulus" doesn't say on its own
+whether a resection was done) — edited in Patient Records alongside
+`surgeryPerformedAt`. Two of the four rows are gated on a fixed number of
+hours after recovery from anaesthesia (reads `surgeryPerformedAt`, added in
+Sprint 3); the other two are gated on SIRS resolving instead, read from
+`sirsPanel`'s own severity (`normal` → resolved, `critical` → not, `watch`
+or no data → unknown) rather than re-deriving SIRS status a second way.
+Rendered as a new "Post-op refeeding timeline" section on Clinical
+Intelligence, adult patients only.
+
+Also new: `exerciseReturnPhase()`, the fixed 30-day-stall /
+30-day-paddock / 30-day-pasture / 90-day-athletic-return protocol the
+source recommends for owner guidance, anchored to `Patient.dischargedAt`
+(from Track 1) — undefined before discharge, since the clock only starts
+once the horse actually goes home.
+
+**B5 — post-discharge follow-up, using Sprint 2's complication frames
+directly.** The review plan called this out explicitly: "Frame 4 is
+literally this functionality." No new data model — `POST_DISCHARGE_PRIORITY`
+(`data/complications.ts`) is 5 existing `ComplicationId`s (postoperative
+colic, incisional hernia, incisional complication, laminitis, adhesions),
+each with its Gandini et al. 2023 (Table 4, post-discharge frame)
+prevalence and a note-prompt hint (e.g. "estimated size" for a hernia).
+`ComplicationsView.tsx` gains a checklist, shown only once
+`patient.lifecycle === 'DISCHARGED'`: a "Log" button per priority
+complication pre-fills the existing add-complication form with that id and
+`frame: 'POST_DISCHARGE'`, and reads "Logged" once one exists. The
+exercise-return phase readout lives in the same section, since both are
+"life after discharge" concerns.
+
+This closes every gap the review plan identified (Sprints 1–5). Remaining
+items (B2 sequenced POI protocol, C1–C4 prognosis/XAI research) were never
+scheduled as engineering sprints — see the companion plan document.
+
+21 new tests (395→414, 21→22 files). Live-verified: setting a patient's
+lesion type to "Large intestine resection" and checking Clinical
+Intelligence shows the refeeding timeline correctly gated on SIRS
+("waiting on SIRS to resolve") rather than a clock time; discharging a
+patient and opening Complications shows the 5-item post-discharge
+checklist with prevalence percentages and the exercise-return phase
+("Stall rest, day 0"); logging "Postoperative colic" from the checklist
+pre-fills the form with `frame: 'POST_DISCHARGE'`, and the checklist item
+flips to "Logged" once saved.
+
 ---
 
 ## Stack and commands
@@ -626,6 +677,7 @@ and one tab with three different names.
 | `data/complications.ts` | Standardised complication definitions + `orTierFor` OR-weighted severity |
 | `data/salmonella.ts` | Isolation-criteria evaluation + surveillance interval constants |
 | `data/clinicalAssessments.ts`'s `CPS_*`/`EAAPS` | Composite Pain Scale (van Loon 2014) and EAAPS (Maskato 2020) definitions |
+| `data/nutritionTimeline.ts` | Post-op refeeding timeline by lesion type + return-to-exercise phase |
 
 ### Two invariants worth stating
 
@@ -645,7 +697,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 395 tests across 21 files in
+own — `vite.config.ts` is enough). 414 tests across 22 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

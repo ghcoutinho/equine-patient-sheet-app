@@ -100,6 +100,23 @@ export const FRAME_LABEL: Record<ComplicationFrame, string> = {
 export const FRAME_ORDER: ComplicationFrame[] = ['MEDICAL', 'RELAPAROTOMY', 'FATAL', 'POST_DISCHARGE'];
 
 /**
+ * The 5 complications Gandini et al. 2023 (Table 4, frame 4 — post-discharge)
+ * reports as most prevalent after leaving hospital, in prevalence order.
+ * Drives the post-discharge follow-up checklist in `ComplicationsView.tsx` —
+ * a prompt for what to specifically ask about at a discharge recheck, not a
+ * new taxonomy: every id here is already a member of `ComplicationId`.
+ */
+export const POST_DISCHARGE_PRIORITY: { id: ComplicationId; prevalence: number; notePrompt: string }[] = [
+  { id: 'POC', prevalence: 28.7, notePrompt: 'Date of occurrence' },
+  { id: 'INCISIONAL_HERNIA', prevalence: 17.3, notePrompt: 'Estimated size' },
+  { id: 'INCISIONAL', prevalence: 9.2, notePrompt: 'Treatment started' },
+  { id: 'LAMINITIS', prevalence: 5.1, notePrompt: 'Obel grade' },
+  { id: 'ADHESIONS', prevalence: 4.8, notePrompt: 'Basis for clinical suspicion' },
+];
+
+export const POST_DISCHARGE_PRIORITY_SOURCE = 'Gandini et al. 2023, Table 4 (post-discharge frame)';
+
+/**
  * Odds ratio, colic surgery vs. elective/non-abdominal surgery — the eight
  * complications Loomes et al. 2025 (Table 4) reported a comparator for.
  * Everything else in `ComplicationId` occurs only after colic (no elective

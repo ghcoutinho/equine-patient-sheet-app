@@ -119,6 +119,14 @@ export interface Complication extends Recorded {
 }
 
 /**
+ * Lesion classification driving the post-op refeeding timeline (Bauck
+ * 2023) — see `data/nutritionTimeline.ts`. Deliberately separate from
+ * `diagnosis` free text, which doesn't say on its own whether a resection
+ * was performed.
+ */
+export type LesionType = 'NON_STRANGULATING' | 'SI_STRANGULATING' | 'LI_SIRS' | 'LI_RESECTION';
+
+/**
  * One Salmonella surveillance sample. Bauck 2023's protocol: collect on
  * every colic admission (not just clinically suspected cases), resampled
  * routinely and more frequently once a patient is isolated — see
@@ -498,6 +506,12 @@ export interface Patient {
    * colic admissions are never taken to surgery.
    */
   surgeryPerformedAt?: string;
+  /**
+   * Clinician-set lesion classification, never inferred from `diagnosis`
+   * free text — drives the post-op refeeding timeline in
+   * `data/nutritionTimeline.ts`.
+   */
+  lesionType?: LesionType;
   attendingClinician?: string;
   schedule?: ScheduledTask[];
   /** Drugs, fluids and infusions, open and closed. */

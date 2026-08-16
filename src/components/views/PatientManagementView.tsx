@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { Patient, PatientLifecycle, BodySystem } from '../../types';
 import { BODY_SYSTEM_META, ALL_BODY_SYSTEMS, suggestBodySystems } from '../../data/bodySystems';
+import { LESION_TYPE_LABEL } from '../../data/nutritionTimeline';
 
 interface PatientManagementViewProps {
   patients: Patient[];
@@ -103,6 +104,7 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
       attendingClinician: p.attendingClinician,
       isTest: p.isTest,
       surgeryPerformedAt: p.surgeryPerformedAt,
+      lesionType: p.lesionType,
     });
   };
 
@@ -419,6 +421,33 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
                     <span className="block font-derived-value text-[11px] text-[#747686] mt-1">
                       Leave blank if managed medically. Used only to read serum amyloid A
                       correctly in the first 48h after coeliotomy.
+                    </span>
+                  </label>
+
+                  <label className="block">
+                    <span className="font-label-caps text-xs text-[#434655] block mb-1">
+                      Lesion type
+                    </span>
+                    <select
+                      value={draft.lesionType ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          lesionType: (e.target.value || undefined) as Patient['lesionType'],
+                        })
+                      }
+                      className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+                    >
+                      <option value="">Not classified</option>
+                      {(Object.keys(LESION_TYPE_LABEL) as (keyof typeof LESION_TYPE_LABEL)[]).map((k) => (
+                        <option key={k} value={k}>
+                          {LESION_TYPE_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="block font-derived-value text-[11px] text-[#747686] mt-1">
+                      Drives the post-op refeeding timeline on Clinical Intelligence — not inferred
+                      from the diagnosis text.
                     </span>
                   </label>
 

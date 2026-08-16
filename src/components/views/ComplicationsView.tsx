@@ -8,8 +8,11 @@ import {
   FRAME_ORDER,
   OR_TIER_LABEL,
   orTierFor,
+  POST_DISCHARGE_PRIORITY,
+  POST_DISCHARGE_PRIORITY_SOURCE,
   type OrTier,
 } from '../../data/complications';
+import { EXERCISE_RETURN_PROTOCOL, exerciseReturnPhase } from '../../data/nutritionTimeline';
 import { stampRecorded } from '../../utils/recorded';
 import { clockTime, dayLabel, newId } from '../../utils/treatments';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
@@ -56,6 +59,7 @@ export const ComplicationsView: React.FC<ComplicationsViewProps> = ({
   const [complicationId, setComplicationId] = useState<ComplicationId>(ALL_COMPLICATION_IDS[0]);
   const [frame, setFrame] = useState<ComplicationFrame>('MEDICAL');
   const [note, setNote] = useState('');
+  const [notePlaceholder, setNotePlaceholder] = useState('What was observed');
 
   const write = (next: Complication[]) => onUpdatePatient({ ...patient, complications: next });
 
@@ -73,8 +77,19 @@ export const ComplicationsView: React.FC<ComplicationsViewProps> = ({
     setComplicationId(ALL_COMPLICATION_IDS[0]);
     setFrame('MEDICAL');
     setNote('');
+    setNotePlaceholder('What was observed');
     setAdding(true);
   };
+
+  const startAddPostDischarge = (id: ComplicationId, notePrompt: string) => {
+    setComplicationId(id);
+    setFrame('POST_DISCHARGE');
+    setNote('');
+    setNotePlaceholder(notePrompt);
+    setAdding(true);
+  };
+
+  const exercisePhase = exerciseReturnPhase(patient.dischargedAt, now);
 
   const save = () => {
     if (!hasClinician) return;
@@ -124,6 +139,54 @@ export const ComplicationsView: React.FC<ComplicationsViewProps> = ({
             </button>
           )}
         </div>
+
+        {patient.lifecycle === 'DISCHARGED' && (
+          <section className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4 mb-4">
+            <h2 className="font-headline text-base font-bold text-[#0b1c30] mb-1">
+              Post-discharge follow-up
+            </h2>
+            <p className="font-derived-value text-xs text-[#747686] mb-3">
+              The 5 complications most frequently reported after discharge — {POST_DISCHARGE_PRIORITY_SOURCE}.
+            </p>
+            <ul className="divide-y divide-[#E2E8F0] mb-3">
+              {POST_DISCHARGE_PRIORITY.map(({ id, prevalence, notePrompt }) => {
+                const alreadyLogged = complications.some(
+                  (c) => c.complicationId === id && c.frame === 'POST_DISCHARGE',
+                );
+                return (
+                  <li key={id} className="flex items-center justify-between gap-3 py-2">
+                    <span className="font-body-md text-sm text-[#0b1c30]">
+                      {COMPLICATION_META[id].label}
+                      <span className="font-derived-value text-xs text-[#747686]"> · {prevalence}%</span>
+                    </span>
+                    {alreadyLogged ? (
+                      <span className="font-label-caps text-[10px] text-[#047857] px-1.5 py-0.5 rounded bg-[#ECFDF5] border border-[#047857]/30">
+                        Logged
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => startAddPostDischarge(id, notePrompt)}
+                        className="px-2.5 py-1 text-xs font-label-caps border border-[#E2E8F0] rounded text-[#434655] hover:bg-[#eff4ff]"
+                      >
+                        Log
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            {exercisePhase && (
+              <p className="font-derived-value text-xs text-[#0b1c30] bg-[#f8f9ff] border border-[#E2E8F0] rounded p-2.5">
+                <span className="font-label-caps text-[10px] text-[#747686] uppercase">
+                  Return-to-exercise phase
+                </span>{' '}
+                — {exercisePhase.label} (day {exercisePhase.daysElapsed}
+                {exercisePhase.daysRemaining > 0 ? `, ${exercisePhase.daysRemaining} to next phase` : ''}
+                ). {EXERCISE_RETURN_PROTOCOL.source}
+              </p>
+            )}
+          </section>
+        )}
 
         {adding && (
           <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4 mb-4">
@@ -183,7 +246,7 @@ export const ComplicationsView: React.FC<ComplicationsViewProps> = ({
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="What was observed"
+                placeholder={notePlaceholder}
                 className="w-full border border-[#c4c5d7] rounded px-2 py-1.5 text-sm"
               />
             </div>
