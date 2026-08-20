@@ -20,6 +20,7 @@ import {
 } from '../../types';
 import { GutSoundsQuadrant } from '../ui/GutSoundsQuadrant';
 import { OptionGrid } from '../ui/OptionGrid';
+import { MultiOptionGrid } from '../ui/MultiOptionGrid';
 import { ManureRecorder } from '../ui/ManureRecorder';
 import { ClinicianRequiredNotice } from '../ui/ClinicianRequiredNotice';
 import { DEFAULT_GUT_SOUNDS, summariseGutSounds } from '../../utils/gutSounds';
@@ -62,6 +63,13 @@ interface RoundEntryViewProps {
   onUpdatePatient: (patient: Patient) => void;
   onDone: () => void;
 }
+
+/** Highest first, for picking the one trigger worth naming in a compact preview. */
+const SEVERITY_RANK: Record<'watch' | 'warning' | 'critical', number> = {
+  watch: 1,
+  warning: 2,
+  critical: 3,
+};
 
 /**
  * Live colouring for a vitals field. Reference intervals exist for the lab
@@ -152,8 +160,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
   const [refluxAppearance, setRefluxAppearance] = useState<string | undefined>();
   const [nasogastricTube, setNasogastricTube] = useState<string | undefined>();
   const [manure, setManure] = useState<ManureRecord | undefined>();
-  const [rectalExam, setRectalExam] = useState<string | undefined>();
-  const [flashUltrasound, setFlashUltrasound] = useState<string | undefined>();
+  const [rectalExam, setRectalExam] = useState<string[]>([]);
+  const [flashUltrasound, setFlashUltrasound] = useState<string[]>([]);
   const [peritonealFluid, setPeritonealFluid] = useState<string | undefined>();
   const [peritonealOdor, setPeritonealOdor] = useState<string | undefined>();
   const [peritonealBacteria, setPeritonealBacteria] = useState<string | undefined>();
@@ -161,6 +169,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
 
   // Labs
   const [lactate, setLactate] = useState<string>('');
+  const [glucose, setGlucose] = useState<string>('');
+  const [igg, setIgg] = useState<string>('');
   const [peritonealLactate, setPeritonealLactate] = useState<string>('');
   const [peritonealProtein, setPeritonealProtein] = useState<string>('');
   const [peritonealTcc, setPeritonealTcc] = useState<string>('');
@@ -234,8 +244,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       refluxAppearance,
       nasogastricTube,
       manure,
-      rectalExam,
-      flashUltrasound,
+      rectalExam: rectalExam.length > 0 ? rectalExam : undefined,
+      flashUltrasound: flashUltrasound.length > 0 ? flashUltrasound : undefined,
       peritonealFluid,
       peritonealOdor,
       peritonealBacteria,
@@ -305,6 +315,8 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
       gi,
       labs: {
         lactate: toNumber(lactate),
+        glucose: toNumber(glucose),
+        igg: toNumber(igg),
         peritonealLactate: toNumber(peritonealLactate),
         peritonealProtein: toNumber(peritonealProtein),
         peritonealTcc: toNumber(peritonealTcc),
@@ -539,42 +551,31 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
         </span>
       </div>
 
-      {/* Live escalation preview */}
+      {/* Live escalation preview — a count of what would fire if this draft
+          were saved right now. Full detail (label, evidence, rule) lives on
+          Clinical Intelligence once it's actually saved; this is a live
+          preview during entry, not a second copy of that list. */}
       {liveTriggers.length > 0 && (
         <div
-          className="bg-white border border-[#B91C1C]/30 rounded-lg shadow-sm overflow-hidden"
+          className="bg-[#FEF2F2] border border-[#B91C1C]/30 rounded-lg shadow-sm px-4 py-2.5 flex items-center gap-2"
           role="status"
           aria-live="polite"
         >
-          <div className="px-4 py-2 bg-[#B91C1C]/10 border-b border-[#B91C1C]/20 flex items-center justify-between">
-            <span className="font-label-caps text-xs text-[#B91C1C] font-bold uppercase tracking-wider">
-              Call-surgeon triggers · {liveTriggers.length}
+          <span
+            className="material-symbols-outlined text-[#B91C1C] text-lg"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            warning
+          </span>
+          <span className="text-xs">
+            <span className="font-bold text-[#B91C1C]">
+              {liveTriggers.length} call-surgeon trigger{liveTriggers.length === 1 ? '' : 's'}
             </span>
-            <span className="text-[10px] text-[#747686] font-sans">Decision support only</span>
-          </div>
-          <ul className="divide-y divide-[#E2E8F0]">
-            {liveTriggers.map((t) => (
-              <li key={t.id} className="px-4 py-2 flex items-start gap-2 text-sm">
-                <span
-                  className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                    t.severity === 'critical'
-                      ? 'bg-[#B91C1C]'
-                      : t.severity === 'warning'
-                        ? 'bg-[#C2410C]'
-                        : 'bg-[#B45309]'
-                  }`}
-                  aria-hidden
-                />
-                <span className="flex-1">
-                  <span className="font-bold text-[#0b1c30]">{t.label}</span>
-                  <span className="text-[#434655]"> — {t.evidence}</span>
-                  <span className="block text-[11px] text-[#747686] font-sans">
-                    Rule: {t.rule}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
+            <span className="text-[#434655]"> would fire if saved now — highest: </span>
+            <span className="font-bold text-[#0b1c30]">
+              {[...liveTriggers].sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])[0].label}
+            </span>
+          </span>
         </div>
       )}
 
@@ -704,13 +705,13 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             previous={latest?.gi?.nasogastricTube}
           />
           <ManureRecorder value={manure} onChange={setManure} />
-          <OptionGrid
+          <MultiOptionGrid
             definition={RECTAL_EXAM}
             value={rectalExam}
             onChange={setRectalExam}
             previous={latest?.gi?.rectalExam}
           />
-          <OptionGrid
+          <MultiOptionGrid
             definition={FLASH_ULTRASOUND}
             value={flashUltrasound}
             onChange={setFlashUltrasound}
@@ -816,6 +817,25 @@ export const RoundEntryView: React.FC<RoundEntryViewProps> = ({
             accent: '#0E7490',
             field: 'wbc',
           })}
+
+          {isFoalPatient && (
+            <>
+              {numberField('Blood glucose (mg/dL)', glucose, setGlucose, {
+                placeholder: 'e.g. 95',
+                prev: typeof latest?.labs?.glucose === 'number' ? latest.labs.glucose : undefined,
+                accent: '#0E7490',
+              })}
+              {numberField('IgG snapshot (mg/dL)', igg, setIgg, {
+                placeholder: 'e.g. 850',
+                prev: typeof latest?.labs?.igg === 'number' ? latest.labs.igg : undefined,
+                accent: '#0E7490',
+              })}
+              <p className="font-derived-value text-[11px] text-[#434655] bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 leading-snug">
+                Foal Survival Score scores glucose above 40 mg/dL and IgG above 800 mg/dL;
+                below 400 mg/dL IgG is complete failure of passive transfer, 400–800 partial.
+              </p>
+            </>
+          )}
 
           <p className="font-derived-value text-[11px] text-[#434655] bg-[#eff4ff] border border-[#E2E8F0] rounded p-2.5 leading-snug">
             Peritoneal lactate is charted separately from plasma because the comparison is

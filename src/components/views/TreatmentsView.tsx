@@ -9,6 +9,7 @@ import {
   clockTime,
   dayLabel,
   formatDuration,
+  formatCountdown,
   newId,
   upcomingDoses,
   runningLines,
@@ -56,7 +57,10 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   onUpdatePatient,
 }) => {
   const [now, setNow] = useState<Date>(() => new Date());
-  const [mode, setMode] = useState<'sheet' | 'upcoming' | 'timeline'>('sheet');
+  // 'Coming up' and 'Given' used to be separate tabs — a clinician checking
+  // what's due next and what was already given had to switch tabs to see
+  // both halves of the same question. One 'schedule' tab now shows both.
+  const [mode, setMode] = useState<'sheet' | 'schedule'>('sheet');
   const [horizonHours, setHorizonHours] = useState(24);
   const [showStopped, setShowStopped] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -99,18 +103,16 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
    * refused. A first dose (no prior administration) is never flagged — the
    * interval has nothing to anchor "early" against yet.
    */
-  const isEarlyDose = (t: Treatment) => {
-    const status = treatmentStatus(t, now);
-    return status.state === 'RUNNING' && status.lastGivenAt !== undefined;
-  };
+  const isEarlyDose = (t: Treatment) => treatmentStatus(t, now).state === 'GIVEN';
 
   const recordGiven = (t: Treatment) => {
     if (!hasClinician) return;
     let earlyOverrideReason: string | undefined;
     if (isEarlyDose(t)) {
       const status = treatmentStatus(t, now);
+      const countdown = status.dueInMs !== undefined ? formatCountdown(status.dueInMs) : 'later';
       const reason = window.prompt(
-        `${t.drug} isn't due until ${status.nextDueAt ? clockTime(status.nextDueAt) : 'later'} — ` +
+        `${t.drug} — next dose due in ${countdown} — ` +
           `recording it now risks a double dose. Enter a reason to give it anyway, or Cancel to skip.`,
       );
       if (!reason || !reason.trim()) return;
@@ -258,8 +260,7 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
               {(
                 [
                   ['sheet', 'Sheet'],
-                  ['upcoming', 'Coming up'],
-                  ['timeline', 'Given'],
+                  ['schedule', 'Coming up & given'],
                 ] as const
               ).map(([m, label]) => (
                 <button
@@ -356,8 +357,10 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
               </button>
             )}
           </>
-        ) : mode === 'upcoming' ? (
-          /* Forward schedule: what is due, and what is still running */
+        ) : (
+          /* Forward schedule and recent history, in one tab — a clinician
+             checking what's due next usually also wants to know what was
+             last given, and that used to mean switching tabs to see both. */
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-derived-value text-xs text-[#434655]">
@@ -495,62 +498,65 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                 </ul>
               </div>
             )}
-          </div>
-        ) : (
-          /* Chronological */
-          <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
-            {timeline.length === 0 ? (
-              <p className="p-8 text-center font-body-md text-sm text-[#434655]">
-                No treatment events recorded.
-              </p>
-            ) : (
-              <ul className="divide-y divide-[#E2E8F0]">
-                {timeline.map((e) => (
-                  <li key={e.id} className="flex items-start gap-3 p-3 hover:bg-[#f8f9ff]">
-                    <div className="w-16 flex-shrink-0 text-right">
-                      <div className="font-derived-value text-sm font-bold text-[#0b1c30]">
-                        {clockTime(e.at)}
+
+            {/* Given — the same chronological record, in the same tab as what's coming up */}
+            <h2 className="font-label-caps text-[11px] tracking-widest text-[#747686] uppercase pt-2">
+              Given &amp; history
+            </h2>
+            <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm overflow-hidden">
+              {timeline.length === 0 ? (
+                <p className="p-8 text-center font-body-md text-sm text-[#434655]">
+                  No treatment events recorded.
+                </p>
+              ) : (
+                <ul className="divide-y divide-[#E2E8F0]">
+                  {timeline.map((e) => (
+                    <li key={e.id} className="flex items-start gap-3 p-3 hover:bg-[#f8f9ff]">
+                      <div className="w-16 flex-shrink-0 text-right">
+                        <div className="font-derived-value text-sm font-bold text-[#0b1c30]">
+                          {clockTime(e.at)}
+                        </div>
+                        <div className="font-label-caps text-[10px] text-[#747686]">
+                          {dayLabel(e.at, now)}
+                        </div>
                       </div>
-                      <div className="font-label-caps text-[10px] text-[#747686]">
-                        {dayLabel(e.at, now)}
-                      </div>
-                    </div>
-                    <span
-                      className={`material-symbols-outlined text-lg mt-0.5 ${
-                        e.kind === 'STOPPED'
-                          ? 'text-[#747686]'
+                      <span
+                        className={`material-symbols-outlined text-lg mt-0.5 ${
+                          e.kind === 'STOPPED'
+                            ? 'text-[#747686]'
+                            : e.kind === 'STARTED'
+                              ? 'text-[#0037b0]'
+                              : 'text-[#047857]'
+                        }`}
+                      >
+                        {e.kind === 'STOPPED'
+                          ? 'stop_circle'
                           : e.kind === 'STARTED'
-                            ? 'text-[#0037b0]'
-                            : 'text-[#047857]'
-                      }`}
-                    >
-                      {e.kind === 'STOPPED'
-                        ? 'stop_circle'
-                        : e.kind === 'STARTED'
-                          ? 'play_circle'
-                          : 'check_circle'}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="font-body-md text-sm text-[#0b1c30]">
-                        <span className="font-semibold">{e.treatment.drug}</span>
-                        <span className="text-[#747686]">
-                          {' '}
-                          ·{' '}
-                          {e.kind === 'STARTED'
-                            ? 'started'
-                            : e.kind === 'GIVEN'
-                              ? 'given'
-                              : 'stopped'}
-                        </span>
+                            ? 'play_circle'
+                            : 'check_circle'}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-body-md text-sm text-[#0b1c30]">
+                          <span className="font-semibold">{e.treatment.drug}</span>
+                          <span className="text-[#747686]">
+                            {' '}
+                            ·{' '}
+                            {e.kind === 'STARTED'
+                              ? 'started'
+                              : e.kind === 'GIVEN'
+                                ? 'given'
+                                : 'stopped'}
+                          </span>
+                        </div>
+                        <div className="font-derived-value text-xs text-[#434655]">
+                          {[e.detail, e.treatment.route, e.by].filter(Boolean).join(' · ')}
+                        </div>
                       </div>
-                      <div className="font-derived-value text-xs text-[#434655]">
-                        {[e.detail, e.treatment.route, e.by].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -597,7 +603,7 @@ const TreatmentRow: React.FC<RowProps> = ({
   const continuous = !t.intervalHours && t.kind !== 'MEDICATION';
   // Mirrors TreatmentsView's isEarlyDose — recomputed here rather than passed
   // down, since this row already has the status that decision reads.
-  const early = status.state === 'RUNNING' && status.lastGivenAt !== undefined;
+  const early = status.state === 'GIVEN';
   const paused = isContinuousLine(t) && isPaused(t);
   const infused = isContinuousLine(t) ? infusedVolumeMl(t, now, weightKg) : undefined;
   const rate = isContinuousLine(t) ? currentRate(t) : undefined;
@@ -665,7 +671,7 @@ const TreatmentRow: React.FC<RowProps> = ({
                 disabled
                   ? 'Set your name in the top bar before recording a dose'
                   : early
-                    ? `Not due until ${status.nextDueAt ? clockTime(status.nextDueAt) : 'later'} — will ask for a reason`
+                    ? `Next dose due in ${status.dueInMs !== undefined ? formatCountdown(status.dueInMs) : 'later'} — will ask for a reason`
                     : undefined
               }
               className={`px-2.5 py-1 text-xs font-label-caps rounded flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${

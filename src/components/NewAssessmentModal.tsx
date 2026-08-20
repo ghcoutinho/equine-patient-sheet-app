@@ -10,6 +10,7 @@ import {
 } from '../data/patientIdentity';
 import { defaultSchedule } from '../utils/schedule';
 import { suggestBodySystems } from '../data/bodySystems';
+import { BreedSelect } from './ui/BreedSelect';
 
 interface NewAssessmentModalProps {
   isOpen: boolean;
@@ -250,12 +251,12 @@ export const NewAssessmentModal: React.FC<NewAssessmentModalProps> = ({
                   <label className={labelCls} htmlFor="adm-breed">
                     Breed
                   </label>
-                  <input
+                  <BreedSelect
                     id="adm-breed"
                     value={breed}
-                    placeholder="e.g. Quarter Horse"
-                    onChange={(e) => setBreed(e.target.value)}
+                    onChange={setBreed}
                     className={inputCls}
+                    otherInputClassName={`${inputCls} mt-1.5`}
                   />
                 </div>
                 <div>

@@ -131,7 +131,7 @@ export function App() {
               patient={activePatient}
               clinician={clinician}
               onUpdatePatient={handleUpdatePatient}
-              onOpenNewAssessment={() => setIsModalOpen(true)}
+              onNavigate={setCurrentTab}
             />
           )}
 
@@ -203,7 +203,6 @@ export function App() {
               onUpdatePatient={handleUpdatePatient}
               onDeletePatient={handleDeletePatient}
               onSelectPatient={(id) => { setActivePatientId(id); setCurrentTab('flowsheet'); }}
-              onSetClinician={setClinician}
             />
           )}
 

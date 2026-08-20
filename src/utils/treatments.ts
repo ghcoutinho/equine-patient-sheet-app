@@ -17,7 +17,12 @@ const HOUR = 60 * MIN;
 
 export type TreatmentState =
   | 'NOT_STARTED'
+  /** Continuous line (fluid/CRI) up and infusing. Never used for an intermittent order. */
   | 'RUNNING'
+  /** Intermittent order, first dose not yet given, comfortably before it's due. */
+  | 'SCHEDULED'
+  /** Intermittent order, at least one dose given, comfortably waiting for the next. */
+  | 'GIVEN'
   | 'DUE_SOON'
   | 'DUE_NOW'
   | 'OVERDUE'
@@ -143,6 +148,8 @@ export const TREATMENT_STATE_STYLE: Record<
 > = {
   NOT_STARTED: { chip: 'bg-[#eff4ff] text-[#434655] border border-[#E2E8F0]', label: 'Not started' },
   RUNNING: { chip: 'bg-[#ECFDF5] text-[#047857] border border-[#047857]/30', label: 'Running' },
+  SCHEDULED: { chip: 'bg-[#eff4ff] text-[#0037b0] border border-[#0037b0]/30', label: 'Scheduled' },
+  GIVEN: { chip: 'bg-[#ECFDF5] text-[#047857] border border-[#047857]/30', label: 'Given' },
   DUE_SOON: { chip: 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/30', label: 'Due soon' },
   DUE_NOW: { chip: 'bg-[#C2410C] text-white', label: 'Due now' },
   OVERDUE: { chip: 'bg-[#B91C1C] text-white', label: 'Overdue' },
@@ -157,6 +164,14 @@ export function formatDuration(ms: number): string {
   const rem = mins % 60;
   if (h < 48) return rem ? `${h} h ${rem} min` : `${h} h`;
   return `${Math.floor(h / 24)} d ${h % 24} h`;
+}
+
+/** "2:15" (h:mm) — the countdown format for "next dose due in x:xx". */
+export function formatCountdown(ms: number): string {
+  const totalMin = Math.max(0, Math.round(ms / MIN));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${h}:${m.toString().padStart(2, '0')}`;
 }
 
 /** "14:20" in the browser's locale-independent 24-hour form. */
@@ -240,7 +255,13 @@ export function treatmentStatus(t: Treatment, now: Date): TreatmentStatus {
   if (dueInMs < -5 * MIN) state = 'OVERDUE';
   else if (dueInMs <= 5 * MIN) state = 'DUE_NOW';
   else if (dueInMs <= 60 * MIN) state = 'DUE_SOON';
-  else state = 'RUNNING';
+  // 'Running' is reserved for a continuous line actually up (see above) — an
+  // intermittent order comfortably before its next dose is either still
+  // waiting on its first ('Scheduled') or was already given at least once
+  // and is waiting on the next ('Given'). Conflating the two under one
+  // "Running" label was previously ambiguous about whether anything had
+  // been given at all.
+  else state = lastGivenAt ? 'GIVEN' : 'SCHEDULED';
 
   return {
     treatment: t,
@@ -258,6 +279,8 @@ const STATE_RANK: Record<TreatmentState, number> = {
   DUE_NOW: 1,
   DUE_SOON: 2,
   RUNNING: 3,
+  GIVEN: 3,
+  SCHEDULED: 3,
   NOT_STARTED: 4,
   STOPPED: 5,
 };

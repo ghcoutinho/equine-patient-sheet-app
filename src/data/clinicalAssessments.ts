@@ -651,6 +651,30 @@ export function severityOf(
   return SEVERITY_BY_VALUE.get(`${definitionId}::${value}`) ?? 'normal';
 }
 
+const SEVERITY_RANK: Record<AssessmentSeverity, number> = {
+  normal: 0,
+  watch: 1,
+  warning: 2,
+  critical: 3,
+};
+
+/**
+ * The worst severity across a multi-select finding — a rectal exam or FLASH
+ * scan can turn up more than one thing at once, and the most severe one is
+ * what should colour the cell and drive a trigger, not whichever was
+ * selected first.
+ */
+export function severityOfAny(
+  definitionId: string,
+  values: string[] | undefined,
+): AssessmentSeverity {
+  if (!values?.length) return 'normal';
+  return values.reduce<AssessmentSeverity>((worst, v) => {
+    const sev = severityOf(definitionId, v);
+    return SEVERITY_RANK[sev] > SEVERITY_RANK[worst] ? sev : worst;
+  }, 'normal');
+}
+
 export const MANURE_AMOUNTS = ['Small', 'Moderate', 'Abundant'] as const;
 export const MANURE_CONSISTENCIES = [
   'Normal pellets',

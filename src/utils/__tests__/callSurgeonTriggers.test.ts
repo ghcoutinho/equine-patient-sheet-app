@@ -17,6 +17,53 @@ const column = (over: Partial<FlowsheetColumn> = {}): FlowsheetColumn => ({
   ...over,
 });
 
+describe('rectal examination trigger — multi-select', () => {
+  it('fires critical when the only selected finding is critical', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ gi: { rectalExam: ['Tight tensional bands'] } }),
+    );
+    expect(t.find((x) => x.id === 'rectal')?.severity).toBe('critical');
+  });
+
+  it('fires critical when a critical finding is selected alongside a lesser one', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ gi: { rectalExam: ['Pelvic flexure impaction', 'Tight tensional bands'] } }),
+    );
+    const fired = t.find((x) => x.id === 'rectal');
+    expect(fired?.severity).toBe('critical');
+    expect(fired?.evidence).toContain('Tight tensional bands');
+    expect(fired?.evidence).toContain('Pelvic flexure impaction');
+  });
+
+  it('does not fire when only a warning-tier finding is selected', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { rectalExam: ['Pelvic flexure impaction'] } }));
+    expect(t.find((x) => x.id === 'rectal')).toBeUndefined();
+  });
+
+  it('does not fire on an empty selection', () => {
+    const t = evaluateCallSurgeonTriggers(column({ gi: { rectalExam: [] } }));
+    expect(t.find((x) => x.id === 'rectal')).toBeUndefined();
+  });
+});
+
+describe('FLASH ultrasound trigger — multi-select', () => {
+  it('fires critical when a critical finding is among several selected', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({
+        gi: { flashUltrasound: ['Thickened small intestinal wall', 'Distended SI loops'] },
+      }),
+    );
+    expect(t.find((x) => x.id === 'flash')?.severity).toBe('critical');
+  });
+
+  it('does not fire when every selected finding is warning-tier or normal', () => {
+    const t = evaluateCallSurgeonTriggers(
+      column({ gi: { flashUltrasound: ['Thickened colon wall'] } }),
+    );
+    expect(t.find((x) => x.id === 'flash')).toBeUndefined();
+  });
+});
+
 describe('pyrexia trigger', () => {
   it('does not fire below the mild tier', () => {
     const t = evaluateCallSurgeonTriggers(column({ vitals: { temperatureC: 38.0 } }));

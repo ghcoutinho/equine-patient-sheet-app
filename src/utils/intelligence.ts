@@ -6,7 +6,7 @@ import type {
   AssessmentSeverity,
 } from '../types';
 import { calculateScoreBounds } from './missingDataHandler';
-import { severityOf } from '../data/clinicalAssessments';
+import { severityOf, severityOfAny } from '../data/clinicalAssessments';
 import { summariseGutSounds } from './gutSounds';
 import { computeDerived } from './labs';
 import { neonatalSepsisPanel } from './neonatalSepsisScore';
@@ -30,13 +30,17 @@ const MM_MAP: Record<string, NonNullable<FlowsheetEntry['mucousMembranes']>> = {
   'Cyanotic / blue': 'CYANOTIC',
 };
 
-/** A structured finding is 'NORMAL' only when the catalogue grades it normal. */
+/**
+ * A multi-select finding is 'NORMAL' only when the catalogue grades every
+ * selected value normal — one abnormal finding among several selected is
+ * still abnormal.
+ */
 function normalOrAbnormal(
   definitionId: string,
-  value: string | undefined,
+  values: string[] | undefined,
 ): 'NORMAL' | 'ABNORMAL' | undefined {
-  if (!value) return undefined;
-  return severityOf(definitionId, value) === 'normal' ? 'NORMAL' : 'ABNORMAL';
+  if (!values?.length) return undefined;
+  return severityOfAny(definitionId, values) === 'normal' ? 'NORMAL' : 'ABNORMAL';
 }
 
 const numeric = (v: number | 'Pending' | undefined): number | undefined =>

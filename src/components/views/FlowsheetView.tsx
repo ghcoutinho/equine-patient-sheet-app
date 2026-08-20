@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Patient, FlowsheetColumn, AssessmentSeverity } from '../../types';
+import { Patient, FlowsheetColumn, AssessmentSeverity, ViewTab } from '../../types';
 import { GutSoundsGlyph } from '../ui/GutSoundsQuadrant';
 import { formatManure } from '../../utils/manure';
-import { severityOf } from '../../data/clinicalAssessments';
+import { severityOf, severityOfAny } from '../../data/clinicalAssessments';
+import { carryForward, type CarriedValue } from '../../utils/carryForward';
 import { summariseGutSounds } from '../../utils/gutSounds';
 import { evaluateCallSurgeonTriggers } from '../../utils/callSurgeonTriggers';
 import { columnsInCurrentAdmission, earlierAdmissionColumnCount, latestColumn } from '../../utils/admission';
@@ -75,6 +76,28 @@ const TREND_SERIES: {
   },
 ];
 
+/**
+ * A numeric cell's content — the value itself, plus, only when it's carried
+ * forward from an earlier column, the time it was actually observed. A
+ * carried value is never shown identically to a value charted this round;
+ * the timestamp is what keeps "last known" from reading as "just seen".
+ */
+const carriedCell = (cf: CarriedValue<number> | undefined): React.ReactNode => {
+  if (!cf) return '--';
+  return (
+    <>
+      {cf.value}
+      {cf.carried ? (
+        <span className="block text-[9px] text-[#94a3b8] font-sans normal-case font-normal">
+          as of {cf.sourceColumn.time}
+        </span>
+      ) : (
+        ' ↗'
+      )}
+    </>
+  );
+};
+
 const SEVERITY_CELL: Record<AssessmentSeverity, string> = {
   normal: 'text-[#047857]',
   watch: 'bg-[#FFFBEB] text-[#B45309] font-bold',
@@ -86,14 +109,14 @@ interface FlowsheetViewProps {
   patient: Patient;
   clinician?: string;
   onUpdatePatient: (updatedPatient: Patient) => void;
-  onOpenNewAssessment: () => void;
+  onNavigate: (tab: ViewTab) => void;
 }
 
 export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
   patient,
   clinician,
   onUpdatePatient,
-  onOpenNewAssessment,
+  onNavigate,
 }) => {
   // Ticks once a minute so "12 min late" stays honest without re-rendering
   // the grid on every frame.
@@ -175,52 +198,6 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     setEditingIdx(null);
   };
 
-  const [newHR, setNewHR] = useState<string>('');
-  const [newTemp, setNewTemp] = useState<string>('');
-  const [newReflux, setNewReflux] = useState<string>('');
-  const [newLactate, setNewLactate] = useState<string>('');
-  const [isAddingEntry, setIsAddingEntry] = useState(false);
-
-  const handleAddNewTimepoint = () => {
-    if ((!newHR && !newTemp && !newReflux && !newLactate) || !hasClinician) return;
-
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    const recorded = stampRecorded(clinician!);
-
-    const newColumn: FlowsheetColumn = {
-      time: timeStr,
-      recordedAt: recorded.at,
-      recordedBy: recorded.by,
-      vitals: {
-        heartRate: newHR ? parseFloat(newHR) : undefined,
-        temperatureC: newTemp ? parseFloat(newTemp) : undefined,
-      },
-      gi: {
-        refluxVolumeL: newReflux ? parseFloat(newReflux) : undefined,
-        // Motility is auscultated, not inferred from reflux volume. This used
-        // to chart "Absent" or "Decreased" purely from the litres in the
-        // bucket, which put a finding in the record that nobody listened for.
-      },
-      labs: {
-        lactate: newLactate ? parseFloat(newLactate) : undefined,
-      },
-    };
-
-    const updated = {
-      ...patient,
-      lastObsTime: 'Just now',
-      flowsheetHistory: [...patient.flowsheetHistory, newColumn],
-    };
-
-    onUpdatePatient(updated);
-    setNewHR('');
-    setNewTemp('');
-    setNewReflux('');
-    setNewLactate('');
-    setIsAddingEntry(false);
-  };
-
   // Helper for status styling
   const getHRClass = (hr?: number) => {
     if (!hr) return 'text-[#434655]';
@@ -259,7 +236,7 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
 
   const getLactateClass = (lac?: number | string) => refClass('lactate', lac);
 
-  const colCount = visibleColumns.length + 2;
+  const colCount = visibleColumns.length + 1;
 
   /** Section divider row. */
   const sectionRow = (label: string, accent: string) => (
@@ -285,6 +262,8 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
     accent: string,
     read: (col: FlowsheetColumn) => string | undefined,
     definitionId?: string,
+    /** Multi-select rows pass their own worst-of-selected severity instead of a single-value lookup. */
+    severityOverride?: (col: FlowsheetColumn) => AssessmentSeverity,
   ) => {
     const anyValue = visibleColumns.some((c) => read(c) !== undefined);
     if (!anyValue) return null;
@@ -294,23 +273,37 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
           <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accent }} />
           <span className="text-[#0b1c30] font-bold">{label}</span>
         </td>
-        {visibleColumns.map((col, idx) => {
-          const v = read(col);
-          const sev = definitionId ? severityOf(definitionId, v) : 'normal';
+        {visibleColumns.map((_col, idx) => {
+          const cf = carryForward(visibleColumns, idx, read);
+          const sev = severityOverride
+            ? cf
+              ? severityOverride(cf.sourceColumn)
+              : 'normal'
+            : definitionId && cf
+              ? severityOf(definitionId, cf.value)
+              : 'normal';
           return (
             <td
               key={idx}
               className={`px-3 py-3 border-b border-r border-[#E2E8F0] text-center text-xs leading-tight ${
-                v ? SEVERITY_CELL[sev] : 'text-[#94a3b8]'
-              }`}
+                cf ? SEVERITY_CELL[sev] : 'text-[#94a3b8]'
+              } ${cf?.carried ? 'opacity-60' : ''}`}
             >
-              {v ?? '--'}
+              {cf ? (
+                <>
+                  {cf.value}
+                  {cf.carried && (
+                    <span className="block text-[9px] text-[#94a3b8] font-sans normal-case font-normal">
+                      as of {cf.sourceColumn.time}
+                    </span>
+                  )}
+                </>
+              ) : (
+                '--'
+              )}
             </td>
           );
         })}
-        <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff] text-[10px] text-[#747686] font-sans">
-          Record round
-        </td>
       </tr>
     );
   };
@@ -347,8 +340,8 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
         </div>
 
         <div className="flex gap-2 text-xs font-label-caps">
-          <button 
-            onClick={onOpenNewAssessment}
+          <button
+            onClick={() => onNavigate('assess')}
             className="px-3 py-1 bg-[#0037b0] text-white rounded font-bold hover:bg-[#1d4ed8] transition flex items-center gap-1 shadow-sm"
           >
             <span className="material-symbols-outlined text-sm">add</span>
@@ -582,9 +575,6 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       </span>
                     </th>
                   ))}
-                  <th className="px-4 py-3 border-b border-[#E2E8F0] font-label-caps text-xs text-[#0037b0] text-center min-w-[120px] bg-[#eff4ff]">
-                    + New Entry
-                  </th>
                 </tr>
               </thead>
 
@@ -605,23 +595,19 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">bpm</span>
                     </div>
                   </td>
-                  {visibleColumns.map((col, idx) => (
-                    <td
-                      key={idx}
-                      className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getHRClass(col.vitals.heartRate)}`}
-                    >
-                      {col.vitals.heartRate ? `${col.vitals.heartRate} ↗` : '--'}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff]">
-                    <input 
-                      type="number"
-                      placeholder="--"
-                      value={newHR}
-                      onChange={(e) => { setNewHR(e.target.value); setIsAddingEntry(true); }}
-                      className="w-full bg-white border border-[#c4c5d7] rounded text-center font-clinical-value text-xs py-1 text-[#0b1c30] focus:ring-1 focus:ring-[#0037b0] no-spinner"
-                    />
-                  </td>
+                  {visibleColumns.map((_col, idx) => {
+                    const cf = carryForward(visibleColumns, idx, (c) => c.vitals.heartRate);
+                    return (
+                      <td
+                        key={idx}
+                        className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${
+                          cf ? getHRClass(cf.value) : 'text-[#434655]'
+                        } ${cf?.carried ? 'opacity-60' : ''}`}
+                      >
+                        {carriedCell(cf)}
+                      </td>
+                    );
+                  })}
                 </tr>
 
                 {/* Row: Temperature */}
@@ -635,26 +621,21 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       </span>
                     </div>
                   </td>
-                  {visibleColumns.map((col, idx) => {
-                    const temp = patient.isFoal ? col.vitals.temperatureF : col.vitals.temperatureC;
+                  {visibleColumns.map((_col, idx) => {
+                    const cf = carryForward(visibleColumns, idx, (c) =>
+                      patient.isFoal ? c.vitals.temperatureF : c.vitals.temperatureC,
+                    );
                     return (
-                      <td 
-                        key={idx} 
-                        className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getTempClass(temp)}`}
+                      <td
+                        key={idx}
+                        className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${
+                          cf ? getTempClass(cf.value) : 'text-[#434655]'
+                        } ${cf?.carried ? 'opacity-60' : ''}`}
                       >
-                        {temp ? `${temp} ↗` : '--'}
+                        {carriedCell(cf)}
                       </td>
                     );
                   })}
-                  <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff]">
-                    <input 
-                      type="number"
-                      placeholder="--"
-                      value={newTemp}
-                      onChange={(e) => { setNewTemp(e.target.value); setIsAddingEntry(true); }}
-                      className="w-full bg-white border border-[#c4c5d7] rounded text-center font-clinical-value text-xs py-1 text-[#0b1c30] focus:ring-1 focus:ring-[#0037b0] no-spinner"
-                    />
-                  </td>
                 </tr>
 
                 {structuredRow(
@@ -749,9 +730,6 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                         </td>
                       );
                     })}
-                    <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff] text-[10px] text-[#747686] font-sans">
-                      Record round
-                    </td>
                   </tr>
                 )}
 
@@ -764,23 +742,32 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">Liters</span>
                     </div>
                   </td>
-                  {visibleColumns.map((col, idx) => (
-                    <td
-                      key={idx}
-                      className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getRefluxClass(col.gi.refluxVolumeL)}`}
-                    >
-                      {col.gi.refluxVolumeL !== undefined ? `${col.gi.refluxVolumeL} L ↗` : '--'}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff]">
-                    <input 
-                      type="number"
-                      placeholder="--"
-                      value={newReflux}
-                      onChange={(e) => { setNewReflux(e.target.value); setIsAddingEntry(true); }}
-                      className="w-full bg-white border border-[#c4c5d7] rounded text-center font-clinical-value text-xs py-1 text-[#0b1c30] focus:ring-1 focus:ring-[#0037b0] no-spinner"
-                    />
-                  </td>
+                  {visibleColumns.map((_col, idx) => {
+                    const cf = carryForward(visibleColumns, idx, (c) => c.gi.refluxVolumeL);
+                    return (
+                      <td
+                        key={idx}
+                        className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${
+                          cf ? getRefluxClass(cf.value) : 'text-[#434655]'
+                        } ${cf?.carried ? 'opacity-60' : ''}`}
+                      >
+                        {cf ? (
+                          <>
+                            {cf.value} L
+                            {cf.carried ? (
+                              <span className="block text-[9px] text-[#94a3b8] font-sans normal-case font-normal">
+                                as of {cf.sourceColumn.time}
+                              </span>
+                            ) : (
+                              ' ↗'
+                            )}
+                          </>
+                        ) : (
+                          '--'
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
 
                 {structuredRow(
@@ -807,15 +794,17 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                   'rectal',
                   'Rectal examination',
                   '#B45309',
-                  (c) => c.gi.rectalExam,
+                  (c) => (c.gi.rectalExam?.length ? c.gi.rectalExam.join(', ') : undefined),
                   'rectalExam',
+                  (c) => severityOfAny('rectalExam', c.gi.rectalExam),
                 )}
                 {structuredRow(
                   'flash',
                   'FLASH ultrasound',
                   '#B45309',
-                  (c) => c.gi.flashUltrasound,
+                  (c) => (c.gi.flashUltrasound?.length ? c.gi.flashUltrasound.join(', ') : undefined),
                   'flashUltrasound',
+                  (c) => severityOfAny('flashUltrasound', c.gi.flashUltrasound),
                 )}
                 {structuredRow(
                   'peritoneal',
@@ -862,24 +851,34 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                       <span className="text-[10px] text-[#434655] uppercase font-sans">mmol/L</span>
                     </div>
                   </td>
-                  {visibleColumns.map((col, idx) => (
-                    <td
-                      key={idx}
-                      className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${getLactateClass(col.labs.lactate)}`}
-                    >
-                      {col.labs.lactate ? `${col.labs.lactate} ↗` : 'Pend'}
-                    </td>
-                  ))}
-                  <td className="px-2 py-2 border-b border-[#E2E8F0] text-center bg-[#eff4ff]">
-                    <input 
-                      type="number"
-                      step="0.1"
-                      placeholder="--"
-                      value={newLactate}
-                      onChange={(e) => { setNewLactate(e.target.value); setIsAddingEntry(true); }}
-                      className="w-full bg-white border border-[#c4c5d7] rounded text-center font-clinical-value text-xs py-1 text-[#0b1c30] focus:ring-1 focus:ring-[#0037b0] no-spinner"
-                    />
-                  </td>
+                  {visibleColumns.map((_col, idx) => {
+                    const cf = carryForward(visibleColumns, idx, (c) =>
+                      typeof c.labs.lactate === 'number' ? c.labs.lactate : undefined,
+                    );
+                    return (
+                      <td
+                        key={idx}
+                        className={`px-4 py-3 border-b border-r border-[#E2E8F0] text-center ${
+                          cf ? getLactateClass(cf.value) : 'text-[#434655]'
+                        } ${cf?.carried ? 'opacity-60' : ''}`}
+                      >
+                        {cf ? (
+                          <>
+                            {cf.value}
+                            {cf.carried ? (
+                              <span className="block text-[9px] text-[#94a3b8] font-sans normal-case font-normal">
+                                as of {cf.sourceColumn.time}
+                              </span>
+                            ) : (
+                              ' ↗'
+                            )}
+                          </>
+                        ) : (
+                          'Pend'
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
 
                 {/* Section: Laminitis watch */}
@@ -941,23 +940,6 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
                 )}
               </tbody>
             </table>
-
-            {/* Quick Action Footer for Adding Data */}
-            {isAddingEntry && (
-              <div className="p-3 bg-[#e5eeff] border-t border-[#E2E8F0] flex justify-end items-center gap-2">
-                {!hasClinician && <ClinicianRequiredNotice />}
-                <span className="text-xs font-derived-value text-[#434655]">
-                  New entry ready to save
-                </span>
-                <button
-                  onClick={handleAddNewTimepoint}
-                  disabled={!hasClinician}
-                  className="bg-[#0037b0] hover:bg-[#1d4ed8] disabled:bg-[#c4c5d7] disabled:cursor-not-allowed text-white text-xs font-label-caps px-4 py-1.5 rounded shadow-sm font-bold"
-                >
-                  Save Column Entry
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -991,42 +973,30 @@ export const FlowsheetView: React.FC<FlowsheetViewProps> = ({
               </div>
             )}
 
-            {/* Call-surgeon triggers, computed from the latest charted round */}
+            {/* Call-surgeon triggers, computed from the latest charted round.
+                Full detail lives on Clinical Intelligence — this is a count
+                and a link, not a second copy of the list. */}
             {triggers.length > 0 && (
-              <div className="mt-3" role="status" aria-live="polite">
-                <p className="font-label-caps text-[11px] text-[#B91C1C] font-bold uppercase tracking-wider mb-1.5">
-                  Call-surgeon triggers · {triggers.length}
-                </p>
-                <ul className="space-y-1.5">
-                  {triggers.map((t) => (
-                    <li
-                      key={t.id}
-                      className="bg-white border border-[#E2E8F0] rounded p-2 flex items-start gap-2"
-                    >
-                      <span
-                        className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          t.severity === 'critical'
-                            ? 'bg-[#B91C1C]'
-                            : t.severity === 'warning'
-                              ? 'bg-[#C2410C]'
-                              : 'bg-[#B45309]'
-                        }`}
-                        aria-hidden
-                      />
-                      <span className="text-xs leading-tight">
-                        <span className="font-bold text-[#0b1c30] block">{t.label}</span>
-                        <span className="text-[#434655]">{t.evidence}</span>
-                        <span className="block text-[10px] text-[#747686] font-sans">
-                          {t.rule}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="text-[9px] text-[#747686] font-sans mt-1.5">
-                  Ward escalation rules — decision support only.
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => onNavigate('intelligence')}
+                className="mt-3 w-full text-left bg-[#FEF2F2] border border-[#B91C1C]/30 rounded p-2.5 flex items-center gap-2 hover:bg-[#FEE2E2] transition-colors"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="material-symbols-outlined text-[#B91C1C] text-lg"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  warning
+                </span>
+                <span className="text-xs leading-tight">
+                  <span className="font-bold text-[#B91C1C] block">
+                    {triggers.length} call-surgeon trigger{triggers.length === 1 ? '' : 's'} active
+                  </span>
+                  <span className="text-[#434655] underline">View on Clinical Intelligence</span>
+                </span>
+              </button>
             )}
           </div>
 

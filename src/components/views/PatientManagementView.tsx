@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import type { Patient, PatientLifecycle, BodySystem } from '../../types';
 import { BODY_SYSTEM_META, ALL_BODY_SYSTEMS, suggestBodySystems } from '../../data/bodySystems';
 import { LESION_TYPE_LABEL } from '../../data/nutritionTimeline';
+import { BreedSelect } from '../ui/BreedSelect';
 
 interface PatientManagementViewProps {
   patients: Patient[];
@@ -10,7 +11,6 @@ interface PatientManagementViewProps {
   onUpdatePatient: (patient: Patient) => void;
   onDeletePatient: (id: string) => void;
   onSelectPatient: (id: string) => void;
-  onSetClinician: (name: string) => void;
 }
 
 const lifecycleOf = (p: Patient): PatientLifecycle => p.lifecycle ?? 'ACTIVE';
@@ -37,14 +37,12 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
   onUpdatePatient,
   onDeletePatient,
   onSelectPatient,
-  onSetClinician,
 }) => {
   const [filter, setFilter] = useState<PatientLifecycle | 'ALL'>('ACTIVE');
   const [hideTest, setHideTest] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Patient>>({});
-  const [nameInput, setNameInput] = useState(clinician);
 
   const visible = useMemo(
     () =>
@@ -141,21 +139,12 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
             <span className="font-label-caps text-xs text-[#434655] block mb-1">
               Charting as (recorded against every round you save)
             </span>
-            <div className="flex gap-2">
-              <input
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                placeholder="Your name"
-                className="flex-1 min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => onSetClinician(nameInput.trim())}
-                className="min-h-[44px] px-4 rounded bg-[#0037b0] text-white font-label-caps text-xs font-bold"
-              >
-                Save
-              </button>
-            </div>
+            <p className="font-body-md text-sm text-[#0b1c30]">
+              {clinician || <span className="text-[#B45309] font-bold">Not set</span>}
+              <span className="font-derived-value text-[11px] text-[#747686] ml-2">
+                — click your name in the top bar to change it
+              </span>
+            </p>
             {!clinician && (
               <span className="block font-derived-value text-[11px] text-[#B45309] mt-1">
                 No name set — rounds will be saved as “Unattributed”.
@@ -341,11 +330,22 @@ export const PatientManagementView: React.FC<PatientManagementViewProps> = ({
               {isEditing && (
                 <div className="px-4 py-4 border-t border-[#E2E8F0] bg-[#f8f9ff] space-y-3">
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <label className="block">
+                      <span className="font-label-caps text-xs text-[#434655] block mb-1">
+                        Breed
+                      </span>
+                      <BreedSelect
+                        id={`breed-${p.id}`}
+                        value={draft.breed ?? ''}
+                        onChange={(v) => setDraft({ ...draft, breed: v })}
+                        className="w-full min-h-[44px] px-3 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+                        otherInputClassName="w-full min-h-[44px] px-3 mt-1.5 bg-white border border-[#c4c5d7] rounded font-body-md text-sm focus:ring-2 focus:ring-[#0037b0] focus:outline-none"
+                      />
+                    </label>
                     {(
                       [
                         ['name', 'Name', 'text'],
                         ['caseNumber', 'Case number', 'text'],
-                        ['breed', 'Breed', 'text'],
                         ['weightKg', 'Weight (kg)', 'number'],
                         ['age', 'Age', 'text'],
                         ['location', 'Location', 'text'],

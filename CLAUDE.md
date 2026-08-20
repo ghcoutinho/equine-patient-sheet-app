@@ -588,6 +588,117 @@ checklist with prevalence percentages and the exercise-return phase
 pre-fills the form with `frame: 'POST_DISCHARGE'`, and the checklist item
 flips to "Logged" once saved.
 
+### Design review, Phase 1 + reported bugs (2026-08-20)
+
+A user design audit (`E:\Claude\Clinical app\plano_revisao_design.md`) found
+that the app's 15-tab menu was clean — one entry per tab, no duplicate
+labels — but several **functions** had two write or render paths behind
+that clean menu. Phase 1 of that plan closed the confirmed duplicates; a
+separate batch of reported bugs was fixed in the same pass.
+
+**One writer for a round.** `FlowsheetView`'s inline "+ New Entry" column
+used to create a `FlowsheetColumn` with 4 fields (HR/temp/reflux/lactate)
+that looked identical to, but was a strict subset of, a round from
+`RoundEntryView`. It's gone — the header's "Record Round" button now
+navigates straight to `RoundEntryView` (`onNavigate('assess')`) instead of
+re-opening the New Assessment modal to re-pick a patient already open.
+`NeonatalAssessmentView`'s own glucose/IgG round-writer is gone too;
+those two fields are now Labs-section fields in `RoundEntryView`,
+foal-gated, and the neonatal view reads the latest charted values instead
+of writing its own narrower column.
+
+**One renderer for call-surgeon triggers.** The full triggers list used to
+render three times — Flowsheet's side rail, Round's live preview, and
+Clinical Intelligence. Clinical Intelligence keeps the full list.
+Flowsheet's rail is now a count-and-link ("N triggers active — View on
+Clinical Intelligence"). Round's live preview — genuinely different data,
+since it's computed from the *unsaved draft*, not the last saved round —
+stays, but compacted to a count and the single highest-severity label
+rather than the full per-trigger list a second time.
+
+**One renderer for neonatal score panels.** `NeonatalAssessmentView` used
+to render its own copy of `foalSurvivalPanel`/`neonatalSepsisPanel` next to
+Clinical Intelligence's copy of the same `ScorePanelCard`s. It now shows
+only the admission-time inputs (gestation, perinatal history) and links out
+to Clinical Intelligence for the computed scores.
+
+**One surface for setting the clinician.** `PatientManagementView` had its
+own name input + Save button, duplicating the `TopNavBar` popover every
+round is actually stamped from. Now it's a read-only echo with a pointer to
+the top bar.
+
+**Multi-select rectal exam and FLASH ultrasound.** Both were
+`OptionGrid` single-selects (`GIData.rectalExam`/`flashUltrasound` were
+`string`) even though a real exam can turn up more than one finding at
+once. New `MultiOptionGrid` component; both fields are now `string[]`. The
+"normal" option in each is mutually exclusive with every other option (an
+implicit "none of the above" semantics — selecting "Normal" clears
+everything else, selecting anything else clears "Normal"). Severity for a
+multi-select finding is the worst of everything selected
+(`severityOfAny`, `data/clinicalAssessments.ts`) — a critical rectal
+finding still fires the trigger even if a lesser finding was also ticked.
+
+**Flowsheet carry-forward.** A blank cell used to read as "nothing is
+known" when it usually just meant nobody re-typed a value that hadn't
+changed. `utils/carryForward.ts`'s `carryForward()` looks back to the most
+recent column that actually charted the field; the flowsheet cell shows
+that value with "as of HH:MM" and reduced opacity when it's carried, so a
+carried value is never visually identical to one charted this round. Wired
+into every numeric row (HR, temperature, reflux, lactate) and the generic
+`structuredRow` (rectal exam, FLASH, peritoneal findings, catheter/incision,
+etc.); the four-quadrant gut-sounds glyph row is not yet wired — it needs
+its own carried-glyph rendering, left as a follow-up.
+
+**Treatment status: "Running" no longer means two different things.**
+`TreatmentState` previously used `RUNNING` both for a continuous line
+actually infusing and for an intermittent medication that had already been
+given and was comfortably waiting for its next dose — a "Running" chip on
+penicillin didn't say whether it had been given yet. `RUNNING` is now
+reserved for continuous lines (fluids/CRIs) only; an intermittent order
+is `SCHEDULED` (ordered, first dose not yet given) or `GIVEN` (at least one
+dose given, next one not due soon). The early-dose soft-stop (see below)
+now keys off `GIVEN` specifically.
+
+**Early-dose message.** The soft-stop-with-reason for recording a dose well
+before it's due (`isEarlyDose` in `TreatmentsView.tsx`) is unchanged in
+kind — still an override with a required reason, not a hard block, because
+a hard block would mean the app refusing a clinically necessary breakthrough
+dose. What changed is the message: `formatCountdown()` (`utils/treatments.ts`)
+renders "Next dose due in h:mm" instead of an absolute clock time, in both
+the confirmation prompt and the button's tooltip.
+
+**"Coming up" and "Given" are one tab.** `TreatmentsView`'s three-way
+Sheet/Coming-up/Given toggle is now two-way: Sheet, and a merged
+"Coming up & given" tab showing the forward-projected doses and the
+chronological given/started/stopped history stacked in the same view.
+
+**Horse breed picklist.** `data/breeds.ts`'s `HORSE_BREEDS` (the 7 breeds
+with published erythron reference data, then ~50 more, alphabetised) plus
+an "Other (specify)" free-text fallback — new `BreedSelect` component, used
+in both admission (`NewAssessmentModal`) and editing
+(`PatientManagementView`). Breeds outside the list still work exactly as
+before with `breedErythronFor`'s substring match; the picklist doesn't
+change that lookup, only how the value gets typed in.
+
+**Deferred, not built: a lab-PDF extractor.** Requested — upload a lab
+report PDF on the Laboratory tab and have it parsed into panel fields.
+Not attempted blind: this app has no backend by deliberate architecture
+choice (§2.1 above), so extraction has to run entirely client-side against
+arbitrary lab-report layouts, and a wrong auto-extracted value silently
+written into a patient's record is a different order of risk than a UI
+bug. Needs a scoping decision (accepted accuracy, a mandatory
+review-before-save step, which lab formats to target first) before writing
+any code.
+
+24 new tests (438 total, `carryForward.test.ts` and
+`clinicalAssessments.test.ts` new). Live-verified in the browser: carried
+values render with "as of HH:MM" and reduced opacity on 3 consecutive
+blank columns; selecting two rectal-exam findings keeps both checked, and
+selecting "Normal" afterward clears both; the early-dose tooltip reads
+"Next dose due in 6:00"; the merged schedule tab shows both the upcoming
+dose and the given/started history at once; the breed `<select>` loads 60
+options and correctly pre-selects an existing patient's breed.
+
 ---
 
 ## Stack and commands
@@ -678,6 +789,8 @@ and one tab with three different names.
 | `data/salmonella.ts` | Isolation-criteria evaluation + surveillance interval constants |
 | `data/clinicalAssessments.ts`'s `CPS_*`/`EAAPS` | Composite Pain Scale (van Loon 2014) and EAAPS (Maskato 2020) definitions |
 | `data/nutritionTimeline.ts` | Post-op refeeding timeline by lesion type + return-to-exercise phase |
+| `utils/carryForward.ts` | Flowsheet "carried from an earlier column" lookup |
+| `data/breeds.ts` | Horse breed picklist (`BreedSelect` component) |
 
 ### Two invariants worth stating
 
@@ -697,7 +810,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 414 tests across 22 files in
+own — `vite.config.ts` is enough). 438 tests across 24 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

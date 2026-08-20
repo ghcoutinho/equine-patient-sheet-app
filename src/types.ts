@@ -191,8 +191,10 @@ export interface GIData {
   refluxAppearance?: string;
   nasogastricTube?: string;
   manure?: ManureRecord;
-  rectalExam?: string;
-  flashUltrasound?: string;
+  /** Multi-select — a single exam can turn up more than one finding at once. */
+  rectalExam?: string[];
+  /** Multi-select — see `rectalExam`. */
+  flashUltrasound?: string[];
   peritonealFluid?: string;
   /** Structured odor pick — see `data/clinicalAssessments.ts`'s `PERITONEAL_ODOR`. */
   peritonealOdor?: string;

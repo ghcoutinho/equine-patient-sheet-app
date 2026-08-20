@@ -1,6 +1,6 @@
 import type { FlowsheetColumn, TriggerThresholds, AssessmentSeverity } from '../types';
 import { summariseGutSounds } from './gutSounds';
-import { severityOf } from '../data/clinicalAssessments';
+import { severityOf, severityOfAny } from '../data/clinicalAssessments';
 import {
   plasmaLactateBand,
   PLASMA_LACTATE_BANDS,
@@ -202,23 +202,24 @@ export function evaluateCallSurgeonTriggers(
     }
   }
 
-  // 8 — Rectal examination
-  if (severityOf('rectalExam', column.gi.rectalExam) === 'critical') {
+  // 8 — Rectal examination. Multi-select: a rectal exam can turn up more
+  // than one finding, so this fires on the worst of everything selected.
+  if (severityOfAny('rectalExam', column.gi.rectalExam) === 'critical') {
     out.push({
       id: 'rectal',
       label: 'Rectal finding',
-      evidence: column.gi.rectalExam as string,
+      evidence: (column.gi.rectalExam ?? []).join(', '),
       rule: 'Strangulating or obstructive finding',
       severity: 'critical',
     });
   }
 
-  // 9 — FLASH ultrasound
-  if (severityOf('flashUltrasound', column.gi.flashUltrasound) === 'critical') {
+  // 9 — FLASH ultrasound. Multi-select — see rectal examination above.
+  if (severityOfAny('flashUltrasound', column.gi.flashUltrasound) === 'critical') {
     out.push({
       id: 'flash',
       label: 'FLASH ultrasound finding',
-      evidence: column.gi.flashUltrasound as string,
+      evidence: (column.gi.flashUltrasound ?? []).join(', '),
       rule: 'Distended SI loops or free peritoneal fluid',
       severity: 'critical',
     });

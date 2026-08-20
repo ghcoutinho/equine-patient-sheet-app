@@ -10,6 +10,7 @@ import {
   activeInfusions,
   lastAdministration,
   formatDuration,
+  formatCountdown,
 } from '../treatments';
 
 /**
@@ -114,10 +115,25 @@ describe('treatmentStatus — intermittent orders', () => {
     expect(treatmentStatus(q6(-6 * HOUR + 5 * MIN), NOW).state).toBe('DUE_NOW');
   });
 
-  it('is DUE_SOON out to the full hour, then simply RUNNING', () => {
+  it('is DUE_SOON out to the full hour, then GIVEN once a dose has actually been recorded', () => {
     expect(treatmentStatus(q6(-6 * HOUR + 5 * MIN + 1), NOW).state).toBe('DUE_SOON');
     expect(treatmentStatus(q6(-5 * HOUR), NOW).state).toBe('DUE_SOON');
-    expect(treatmentStatus(q6(-5 * HOUR + 1), NOW).state).toBe('RUNNING');
+    expect(treatmentStatus(q6(-5 * HOUR + 1), NOW).state).toBe('GIVEN');
+  });
+
+  it('is SCHEDULED, not RUNNING, comfortably before a first dose that has never been given', () => {
+    const neverGiven = treatment({
+      intervalHours: 6,
+      startedAt: at(-1 * HOUR),
+      administrations: [],
+    });
+    expect(treatmentStatus(neverGiven, NOW).state).toBe('SCHEDULED');
+  });
+
+  it('never reports RUNNING for an intermittent order — that label is reserved for continuous lines', () => {
+    for (const offset of [-5 * HOUR + 1, -1 * HOUR, -10 * MIN]) {
+      expect(treatmentStatus(q6(offset), NOW).state).not.toBe('RUNNING');
+    }
   });
 
   it('counts from the last dose actually given, not from the start time', () => {
@@ -299,5 +315,21 @@ describe('formatDuration', () => {
 
   it('reads a negative span by magnitude, so callers can add "late"', () => {
     expect(formatDuration(-12 * MIN)).toBe('12 min');
+  });
+});
+
+describe('formatCountdown', () => {
+  it('formats as h:mm, zero-padded', () => {
+    expect(formatCountdown(45 * MIN)).toBe('0:45');
+    expect(formatCountdown(90 * MIN)).toBe('1:30');
+    expect(formatCountdown(6 * HOUR + 5 * MIN)).toBe('6:05');
+  });
+
+  it('rounds to the nearest minute', () => {
+    expect(formatCountdown(44 * MIN + 40_000)).toBe('0:45');
+  });
+
+  it('never goes negative — clamps a just-passed due time to 0:00', () => {
+    expect(formatCountdown(-1 * MIN)).toBe('0:00');
   });
 });
