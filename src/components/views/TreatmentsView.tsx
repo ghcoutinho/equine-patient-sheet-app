@@ -95,29 +95,18 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
   };
 
   /**
-   * A dose recorded well before the next one is actually due — the same
-   * double-dose risk the vision's cross-device interlock targets, here on a
-   * single device against a second click. Soft-stopped, not hard-blocked
-   * (principle C): the clinician can still confirm it with a reason, which
-   * is logged on the administration rather than silently allowed or silently
-   * refused. A first dose (no prior administration) is never flagged — the
-   * interval has nothing to anchor "early" against yet.
+   * A dose recorded well before the next one is actually due. Hard-blocked,
+   * not soft-stopped: an intermittent medication's value is in the regularity
+   * of the interval — dosing early risks toxicity, dosing off-schedule risks
+   * losing effect — so there is no "give it anyway" path here. A first dose
+   * (no prior administration) is never flagged — the interval has nothing to
+   * anchor "early" against yet.
    */
   const isEarlyDose = (t: Treatment) => treatmentStatus(t, now).state === 'GIVEN';
 
   const recordGiven = (t: Treatment) => {
     if (!hasClinician) return;
-    let earlyOverrideReason: string | undefined;
-    if (isEarlyDose(t)) {
-      const status = treatmentStatus(t, now);
-      const countdown = status.dueInMs !== undefined ? formatCountdown(status.dueInMs) : 'later';
-      const reason = window.prompt(
-        `${t.drug} — next dose due in ${countdown} — ` +
-          `recording it now risks a double dose. Enter a reason to give it anyway, or Cancel to skip.`,
-      );
-      if (!reason || !reason.trim()) return;
-      earlyOverrideReason = reason.trim();
-    }
+    if (isEarlyDose(t)) return; // the Given control is disabled while true; this is a backstop
     const recorded = stampRecorded(clinician);
     write(
       (patient.treatments ?? []).map((x) =>
@@ -130,7 +119,6 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                   id: newId('adm'),
                   ...recorded,
                   amountText: x.amountText,
-                  earlyOverrideReason,
                 },
               ],
             }
@@ -483,16 +471,26 @@ export const TreatmentsView: React.FC<TreatmentsViewProps> = ({
                             .join(' · ')}
                         </div>
                       </div>
-                      {u.ordinal === 1 && (
-                        <button
-                          onClick={() => recordGiven(u.treatment)}
-                          disabled={!hasClinician}
-                          title={!hasClinician ? 'Set your name in the top bar before recording a dose' : undefined}
-                          className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          Given
-                        </button>
-                      )}
+                      {u.ordinal === 1 &&
+                        (() => {
+                          const blocked = isEarlyDose(u.treatment);
+                          return (
+                            <button
+                              onClick={() => recordGiven(u.treatment)}
+                              disabled={!hasClinician || blocked}
+                              title={
+                                !hasClinician
+                                  ? 'Set your name in the top bar before recording a dose'
+                                  : blocked
+                                    ? `Not due yet — next dose in ${formatCountdown(treatmentStatus(u.treatment, now).dueInMs ?? 0)}`
+                                    : undefined
+                              }
+                              className="px-2.5 py-1 text-xs font-label-caps bg-[#047857] text-white rounded hover:bg-[#065f46] flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                              Given
+                            </button>
+                          );
+                        })()}
                     </li>
                   ))}
                 </ul>
@@ -602,7 +600,8 @@ const TreatmentRow: React.FC<RowProps> = ({
   const style = TREATMENT_STATE_STYLE[status.state];
   const continuous = !t.intervalHours && t.kind !== 'MEDICATION';
   // Mirrors TreatmentsView's isEarlyDose — recomputed here rather than passed
-  // down, since this row already has the status that decision reads.
+  // down, since this row already has the status that decision reads. Blocks
+  // the Given control outright; see isEarlyDose for why this is hard, not soft.
   const early = status.state === 'GIVEN';
   const paused = isContinuousLine(t) && isPaused(t);
   const infused = isContinuousLine(t) ? infusedVolumeMl(t, now, weightKg) : undefined;
@@ -666,24 +665,24 @@ const TreatmentRow: React.FC<RowProps> = ({
           {status.state !== 'STOPPED' && t.kind === 'MEDICATION' && (
             <button
               onClick={onGiven}
-              disabled={disabled}
+              disabled={disabled || early}
               title={
                 disabled
                   ? 'Set your name in the top bar before recording a dose'
                   : early
-                    ? `Next dose due in ${status.dueInMs !== undefined ? formatCountdown(status.dueInMs) : 'later'} — will ask for a reason`
+                    ? `Not due yet — next dose in ${status.dueInMs !== undefined ? formatCountdown(status.dueInMs) : 'later'}. Recording it now would risk toxicity or break the interval, so this is blocked.`
                     : undefined
               }
               className={`px-2.5 py-1 text-xs font-label-caps rounded flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed ${
                 early
-                  ? 'bg-[#FFFBEB] text-[#B45309] border border-[#B45309]/40 hover:bg-[#FEF3C7]'
+                  ? 'bg-[#F1F5F9] text-[#747686] border border-[#E2E8F0]'
                   : 'bg-[#047857] text-white hover:bg-[#065f46]'
               }`}
             >
               <span className="material-symbols-outlined text-sm">
-                {early ? 'warning' : 'check'}
+                {early ? 'lock' : 'check'}
               </span>
-              <span className="hidden sm:inline">{early ? 'Given early?' : 'Given'}</span>
+              <span className="hidden sm:inline">{early ? 'Not due yet' : 'Given'}</span>
             </button>
           )}
           {isContinuousLine(t) && status.state !== 'STOPPED' && !paused && (

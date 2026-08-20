@@ -260,7 +260,9 @@ export function treatmentStatus(t: Treatment, now: Date): TreatmentStatus {
   // waiting on its first ('Scheduled') or was already given at least once
   // and is waiting on the next ('Given'). Conflating the two under one
   // "Running" label was previously ambiguous about whether anything had
-  // been given at all.
+  // been given at all. Recording a new dose is hard-blocked by the caller
+  // while state is 'GIVEN' — intermittent orders are kept on the interval
+  // that makes them effective and non-toxic, not on ad hoc timing.
   else state = lastGivenAt ? 'GIVEN' : 'SCHEDULED';
 
   return {

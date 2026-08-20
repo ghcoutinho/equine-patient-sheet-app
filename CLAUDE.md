@@ -659,13 +659,10 @@ is `SCHEDULED` (ordered, first dose not yet given) or `GIVEN` (at least one
 dose given, next one not due soon). The early-dose soft-stop (see below)
 now keys off `GIVEN` specifically.
 
-**Early-dose message.** The soft-stop-with-reason for recording a dose well
-before it's due (`isEarlyDose` in `TreatmentsView.tsx`) is unchanged in
-kind — still an override with a required reason, not a hard block, because
-a hard block would mean the app refusing a clinically necessary breakthrough
-dose. What changed is the message: `formatCountdown()` (`utils/treatments.ts`)
-renders "Next dose due in h:mm" instead of an absolute clock time, in both
-the confirmation prompt and the button's tooltip.
+**Early-dose message.** `formatCountdown()` (`utils/treatments.ts`) renders
+"Next dose due in h:mm" instead of an absolute clock time. (The soft-stop
+described here was replaced with a hard block on 2026-08-20 — see the dated
+entry below.)
 
 **"Coming up" and "Given" are one tab.** `TreatmentsView`'s three-way
 Sheet/Coming-up/Given toggle is now two-way: Sheet, and a merged
@@ -680,15 +677,8 @@ in both admission (`NewAssessmentModal`) and editing
 before with `breedErythronFor`'s substring match; the picklist doesn't
 change that lookup, only how the value gets typed in.
 
-**Deferred, not built: a lab-PDF extractor.** Requested — upload a lab
-report PDF on the Laboratory tab and have it parsed into panel fields.
-Not attempted blind: this app has no backend by deliberate architecture
-choice (§2.1 above), so extraction has to run entirely client-side against
-arbitrary lab-report layouts, and a wrong auto-extracted value silently
-written into a patient's record is a different order of risk than a UI
-bug. Needs a scoping decision (accepted accuracy, a mandatory
-review-before-save step, which lab formats to target first) before writing
-any code.
+**Lab-PDF extractor.** Deferred in this pass, then built the same day once
+the user scoped it — see the dated entry below for what shipped.
 
 24 new tests (438 total, `carryForward.test.ts` and
 `clinicalAssessments.test.ts` new). Live-verified in the browser: carried
@@ -698,6 +688,67 @@ selecting "Normal" afterward clears both; the early-dose tooltip reads
 "Next dose due in 6:00"; the merged schedule tab shows both the upcoming
 dose and the given/started history at once; the breed `<select>` loads 60
 options and correctly pre-selects an existing patient's breed.
+
+### Early dosing hard-blocked; lab-PDF extractor built (2026-08-20)
+
+Two follow-ups to the pass above, both scoped by the user the same day.
+
+**Early dosing is now hard-blocked, not soft-stopped.** The prior
+give-it-anyway-with-a-reason override (`window.prompt` in
+`TreatmentsView.recordGiven`) is gone. The user's reasoning: an intermittent
+medication's safety and effectiveness both depend on the interval itself —
+early risks toxicity, off-schedule risks losing effect — so there is no
+"give it anyway" case to design for. `recordGiven` now refuses outright
+while `treatmentStatus(t, now).state === 'GIVEN'`; the Given button in both
+`TreatmentRow` and the "Coming up & given" schedule list is `disabled` in
+that state (lock icon, "Not due yet" label) rather than opening a prompt.
+The `Administration.earlyOverrideReason` field and its display in the
+administrations list stay — for the historical records that already carry
+one — but nothing new writes it. `formatCountdown()` still renders the
+countdown, now in the disabled button's tooltip.
+
+**Lab-PDF extractor: built, review-before-save.** `utils/pdfLabExtractor.ts`
+reads a PDF entirely client-side (`pdfjs-dist`, dynamically imported so it
+doesn't add to the initial bundle — confirmed as separate chunks in
+`npm run build` output) — there's still no backend to send it to. pdf.js
+returns text as positioned fragments, not lines, so `linesFromTextContent`
+reconstructs rows by grouping fragments within a y-tolerance and sorting
+each row by x-position before handing lines to `matchLabValues`.
+`matchLabValues` is a label-alias-then-trailing-number matcher against
+`ALL_ENTERED_FIELDS` (`utils/labs.ts`) — deliberately one field per line
+(the first alias hit consumes the whole line) so a generic alias like
+"calcium" can't also match inside a more specific label like "ionised
+calcium" that already claimed that line. This is heuristic by construction:
+lab report layouts vary by analyser and by lab, so a miss is expected and
+safe (the field is just left for manual entry) while a wrong match is the
+real risk the design is built around.
+
+The review-before-save step is `LabPanelView`'s new "Import from a PDF
+report" panel, shown only while adding/editing a panel: matches land in a
+staging table (checkbox, editable value, the exact source line the match
+came from, for the reviewer to check against the PDF) and nothing reaches
+`patient.labPanels` from there directly. "Insert into form below" is the
+only path out of the staging table, and it writes into `draft` — the same
+state manual typing writes to — so an accepted PDF value is flagged,
+editable and saved through the identical `save()` path (clinician
+attribution, "Save panel" click) a typed value goes through. Sections
+containing an inserted field auto-open so the reviewer sees it immediately
+next to its reference range and flag colour.
+
+7 new tests (445 total, `pdfLabExtractor.test.ts`) covering the matcher in
+isolation — label/value extraction, the ionised-vs-total-calcium
+specificity ordering, no-double-match, no-match-without-a-trailing-number.
+The pdf.js integration itself (not exercised by those tests, which feed
+`matchLabValues` plain strings) was checked against a real hand-built PDF
+via `pdfjs-dist`'s Node build, confirming `linesFromTextContent` reconstructs
+rows correctly from actual positioned text fragments — and end-to-end in
+the browser: a 5-field synthetic PDF produced a 5-row review table with
+correct values and source lines, "Insert into form below" landed all 5 in
+the real form (auto-opening Haematology and Chemistry, computing "Sodium
+corrected for glucose" from the inserted values, flagging Glucose "H"
+against its reference range), and nothing was written to
+`patient.labPanels` until — deliberately not tested here — "Save panel" is
+pressed.
 
 ---
 
@@ -791,6 +842,7 @@ and one tab with three different names.
 | `data/nutritionTimeline.ts` | Post-op refeeding timeline by lesion type + return-to-exercise phase |
 | `utils/carryForward.ts` | Flowsheet "carried from an earlier column" lookup |
 | `data/breeds.ts` | Horse breed picklist (`BreedSelect` component) |
+| `utils/pdfLabExtractor.ts` | Client-side PDF text extraction (`pdfjs-dist`) + best-effort lab-value matching — a review-table staging step, never a save path |
 
 ### Two invariants worth stating
 
@@ -810,7 +862,7 @@ and it is lost if they share a column.
 ### Tests: the calculation core, not the app
 
 Vitest is installed (`npm test` / `npm run test:watch`, no config file of its
-own — `vite.config.ts` is enough). 438 tests across 24 files in
+own — `vite.config.ts` is enough). 445 tests across 25 files in
 `src/**/__tests__/*.test.ts`, covering the modules the "10× overdose" defect
 came from (`concentrationMgMl / 10` in the volume calculation — exactly the
 class of defect a unit test catches and a reviewer's eye does not):

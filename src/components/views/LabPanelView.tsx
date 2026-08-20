@@ -12,6 +12,7 @@ import {
   type LabField,
   type DerivedResult,
 } from '../../utils/labs';
+import { extractLabValuesFromPdf, type ExtractedLabValue } from '../../utils/pdfLabExtractor';
 import { useEnterAdvance } from '../../utils/formNavigation';
 import { clockTime, dayLabel, newId } from '../../utils/treatments';
 import { patientAge } from '../../data/patientIdentity';
@@ -79,6 +80,15 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
   );
   const [hideEmpty, setHideEmpty] = useState(true);
 
+  // PDF import — a staging area, not a save path. Extraction only ever
+  // populates this list; nothing reaches `draft` (and so nothing reaches the
+  // patient record) until the reviewer explicitly accepts each row.
+  const [importRows, setImportRows] = useState<(ExtractedLabValue & { include: boolean })[] | null>(
+    null,
+  );
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
   const formRef = useRef<HTMLDivElement>(null);
   const advanceOnEnter = useEnterAdvance(formRef);
 
@@ -110,12 +120,19 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
   // No clinician, no save — see CLAUDE.md rule 2 and Architecture principle A.
   const hasClinician = !!clinician?.trim();
 
+  const resetImport = () => {
+    setImportRows(null);
+    setImportError(null);
+    setImportBusy(false);
+  };
+
   const startNew = () => {
     setDraft({});
     setCollectedAt(isoLocal(new Date()));
     setSampleType(SAMPLE_TYPES[0]);
     setNote('');
     setEditingId('new');
+    resetImport();
   };
 
   const startEdit = (panel: LabPanel) => {
@@ -126,6 +143,72 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
     setSampleType(panel.sampleType ?? SAMPLE_TYPES[0]);
     setNote(panel.note ?? '');
     setEditingId(panel.id);
+    resetImport();
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    resetImport();
+  };
+
+  /**
+   * Reads a PDF entirely client-side (no backend exists to send it to — see
+   * CLAUDE.md Architecture principle A) and matches it against known lab
+   * fields. Extraction is heuristic by nature — different analysers and labs
+   * lay out the same panel differently — so this only ever populates the
+   * review table below; see acceptImport for the one path from there into
+   * the actual form.
+   */
+  const handlePdfSelected = async (file: File | undefined) => {
+    if (!file) return;
+    setImportBusy(true);
+    setImportError(null);
+    setImportRows(null);
+    try {
+      const { matches } = await extractLabValuesFromPdf(file);
+      if (matches.length === 0) {
+        setImportError(
+          `No recognisable lab values found in "${file.name}". Enter results manually below.`,
+        );
+      } else {
+        setImportRows(matches.map((m) => ({ ...m, include: true })));
+      }
+    } catch {
+      setImportError(`Could not read "${file.name}" as a PDF. Enter results manually below.`);
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const updateImportRow = (
+    fieldId: string,
+    patch: Partial<ExtractedLabValue & { include: boolean }>,
+  ) =>
+    setImportRows((rows) =>
+      rows ? rows.map((r) => (r.fieldId === fieldId ? { ...r, ...patch } : r)) : rows,
+    );
+
+  /**
+   * The only bridge from an extracted PDF value into the form — and it lands
+   * in `draft`, the exact same state manual typing writes to, so an accepted
+   * value is flagged, edited and saved through the identical path a typed one
+   * is. Nothing here touches `patient.labPanels` directly.
+   */
+  const acceptImport = () => {
+    if (!importRows) return;
+    const accepted = importRows.filter((r) => r.include);
+    if (accepted.length === 0) return;
+    setDraft((d) => {
+      const next = { ...d };
+      for (const r of accepted) next[r.fieldId] = String(r.value);
+      return next;
+    });
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      for (const r of accepted) next.add(r.field.section);
+      return next;
+    });
+    setImportRows(null);
   };
 
   const save = () => {
@@ -154,6 +237,7 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
       setViewingId(editingId);
     }
     setEditingId(null);
+    resetImport();
   };
 
   const remove = (panel: LabPanel) => {
@@ -286,6 +370,123 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
               </p>
             </div>
 
+            {/* PDF import — a staging table, not a save path. See handlePdfSelected /
+                acceptImport: nothing here reaches the patient record without the
+                reviewer accepting each row, and the row still has to be entered
+                through "Save panel" below like anything typed by hand. */}
+            <div className="bg-white border border-[#E2E8F0] rounded-lg shadow-sm p-4 mb-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-headline text-sm font-bold text-[#0b1c30] flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-base">upload_file</span>
+                    Import from a PDF report
+                  </h3>
+                  <p className="font-derived-value text-[11px] text-[#747686] mt-0.5 max-w-md">
+                    Reads the PDF entirely on this device — nothing is uploaded anywhere.
+                    Matching is best-effort and must be checked against the source before you
+                    accept it; nothing is saved until you press "Save panel" below.
+                  </p>
+                </div>
+                <label className="px-3 py-1.5 text-xs font-label-caps bg-white border border-[#0037b0]/40 text-[#0037b0] rounded hover:bg-[#eff4ff] cursor-pointer flex-shrink-0 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">
+                    {importBusy ? 'hourglass_top' : 'attach_file'}
+                  </span>
+                  {importBusy ? 'Reading…' : 'Choose PDF'}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    disabled={importBusy}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      void handlePdfSelected(file);
+                    }}
+                  />
+                </label>
+              </div>
+
+              {importError && (
+                <p className="font-derived-value text-xs text-[#B45309] bg-[#FFFBEB] border border-[#B45309]/30 rounded p-2 mt-2">
+                  {importError}
+                </p>
+              )}
+
+              {importRows && (
+                <div className="border border-[#E2E8F0] rounded overflow-hidden mt-3">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-[#f8f9ff] border-b border-[#E2E8F0]">
+                        <tr className="text-left font-label-caps text-[10px] text-[#747686] uppercase">
+                          <th className="p-2 w-8"></th>
+                          <th className="p-2">Field</th>
+                          <th className="p-2">Value</th>
+                          <th className="p-2">Matched from PDF — check this against the report</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E2E8F0]">
+                        {importRows.map((r) => (
+                          <tr key={r.fieldId} className={r.include ? '' : 'opacity-40'}>
+                            <td className="p-2 align-top">
+                              <input
+                                type="checkbox"
+                                checked={r.include}
+                                onChange={(e) =>
+                                  updateImportRow(r.fieldId, { include: e.target.checked })
+                                }
+                                className="accent-[#0037b0]"
+                              />
+                            </td>
+                            <td className="p-2 align-top font-body-md text-[#0b1c30] whitespace-nowrap">
+                              {r.field.name}
+                              <span className="block text-[10px] text-[#747686]">
+                                {r.field.units}
+                              </span>
+                            </td>
+                            <td className="p-2 align-top">
+                              <input
+                                type="number"
+                                step="any"
+                                value={r.value}
+                                onChange={(e) =>
+                                  updateImportRow(r.fieldId, { value: Number(e.target.value) })
+                                }
+                                className="w-24 font-clinical-value text-sm px-1.5 py-1 border border-[#c4c5d7] rounded no-spinner"
+                              />
+                            </td>
+                            <td
+                              className="p-2 align-top font-derived-value text-[10px] text-[#747686] max-w-xs truncate"
+                              title={r.sourceLine}
+                            >
+                              "{r.sourceLine}"
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2 p-2 bg-[#f8f9ff] border-t border-[#E2E8F0]">
+                    <span className="font-derived-value text-[11px] text-[#434655] self-center mr-auto">
+                      {importRows.filter((r) => r.include).length} of {importRows.length} selected
+                    </span>
+                    <button
+                      onClick={() => setImportRows(null)}
+                      className="px-2.5 py-1 text-xs font-label-caps text-[#434655] rounded hover:bg-white"
+                    >
+                      Discard
+                    </button>
+                    <button
+                      onClick={acceptImport}
+                      disabled={importRows.every((r) => !r.include)}
+                      className="px-3 py-1 text-xs font-label-caps bg-[#0037b0] text-white rounded hover:bg-[#1d4ed8] disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Insert into form below
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {LAB_SECTIONS.map(({ section, fields }) => (
               <SectionCard
                 key={section}
@@ -328,7 +529,7 @@ export const LabPanelView: React.FC<LabPanelViewProps> = ({
                 {derived.filter((d) => d.value !== undefined).length} calculated
               </span>
               <button
-                onClick={() => setEditingId(null)}
+                onClick={cancelEditing}
                 className="px-3 py-1.5 text-xs font-label-caps text-[#434655] rounded hover:bg-[#eff4ff]"
               >
                 Cancel
